@@ -4,22 +4,34 @@ An Operations Research Decision-Support System (DSS) utilizing the **Hungarian A
 
 ---
 
-## 📁 Project Architecture
+## Project Architecture
 
 ```text
 optimal_driver/
 ├── data/
-│   ├── raw/                           # ShiftData.csv (491 shifts) & TripData.csv (11,352 trips)
-│   └── processed/                     # Generated schedules, cost matrix & utilization CSVs
+│   ├── raw/
+│   │   ├── ShiftData.csv
+│   │   └── TripData.csv
+│   └── processed/
 ├── src/
-│   ├── config.py                      # Multi-objective weights (w1=0.5, w2=0.3, w3=0.2) & paths
-│   ├── ingestion/                     # Data cleaning, timestamp parsing & driver/vehicle profiling
-│   ├── modeling/                      # 21x21 Cost matrix builder & Hungarian solver O(N³)
-│   ├── analytics/                     # Workload variance (σ²), WBI & fleet utilization
-│   └── reporting/                     # Dashboard display & CSV report exporter
-├── tests/                             # Automated unit test suite (100% pass)
-├── main.py                            # CLI pipeline entrypoint
-├── generate_report_pdf.py             # 3-page comprehensive PDF report generator
+│   ├── config.py
+│   ├── ingestion/
+│   │   ├── loader.py
+│   │   └── preprocessor.py
+│   ├── modeling/
+│   │   ├── cost_matrix.py
+│   │   └── hungarian_solver.py
+│   ├── analytics/
+│   │   ├── workload.py
+│   │   └── utilization.py
+│   └── reporting/
+│       ├── summary_exporter.py
+│       └── console_view.py
+├── tests/
+│   └── test_pipeline.py
+├── main.py
+├── allocate_drivers.py
+├── generate_report_pdf.py
 ├── Optimal_Driver_Allocation_Comprehensive_Report.pdf
 ├── requirements.txt
 └── README.md
@@ -27,7 +39,7 @@ optimal_driver/
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 ### 1. Install Dependencies
 ```bash
@@ -47,7 +59,7 @@ python generate_report_pdf.py
 
 ---
 
-## 📊 Performance Benchmarks
+## Performance Benchmarks
 
 | Metric | Baseline | Optimized Output | Operational Impact |
 | :--- | :---: | :---: | :--- |
@@ -59,7 +71,7 @@ python generate_report_pdf.py
 
 ---
 
-## 🗺️ Roadmap & Documentation
+## Roadmap & Documentation
 
 * **Executive Report:** Full analysis, mathematical formulation, and horizon priorities are in [`Optimal_Driver_Allocation_Comprehensive_Report.pdf`](Optimal_Driver_Allocation_Comprehensive_Report.pdf).
 * **Next Steps:**
