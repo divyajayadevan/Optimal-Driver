@@ -13,6 +13,16 @@ optimal_driver/
 │   │   ├── ShiftData.csv
 │   │   └── TripData.csv
 │   └── processed/
+│       ├── optimal_assignment.csv
+│       ├── cost_matrix_21x21.csv
+│       ├── vehicle_utilization.csv
+│       ├── driver_summary.csv
+│       └── optimal_driver_data.mat
+├── plots/
+│   ├── 1_cost_matrix_assignments_heatmap.png
+│   ├── 2_solver_runtime_and_convergence_comparison.png
+│   ├── 3_bipartite_allocation_network.png
+│   └── 4_workload_and_utilization_distribution.png
 ├── src/
 │   ├── config.py
 │   ├── ingestion/
@@ -20,19 +30,22 @@ optimal_driver/
 │   │   └── preprocessor.py
 │   ├── modeling/
 │   │   ├── cost_matrix.py
-│   │   └── hungarian_solver.py
+│   │   ├── hungarian_solver.py
+│   │   └── alternative_solvers.py
 │   ├── analytics/
 │   │   ├── workload.py
 │   │   └── utilization.py
 │   └── reporting/
+│       ├── console_view.py
 │       ├── summary_exporter.py
-│       └── console_view.py
+│       ├── excel_exporter.py
+│       └── plotter.py
 ├── tests/
 │   └── test_pipeline.py
 ├── main.py
 ├── allocate_drivers.py
-├── generate_report_pdf.py
-├── Optimal_Driver_Allocation_Comprehensive_Report.pdf
+├── matlab_assignment_solver.m
+├── Optimal_Driver_Allocation_Workbook.xlsx
 ├── requirements.txt
 └── README.md
 ```
@@ -46,15 +59,15 @@ optimal_driver/
 pip install -r requirements.txt
 ```
 
-### 2. Run Optimization Pipeline
+### 2. Run Unified Optimization & Analytics Pipeline
+One single command executes all 4 optimization solvers (Custom Hungarian, SciPy, PuLP, Google OR-Tools), exports CSVs, generates the styled multi-tab Excel report, exports MATLAB `.mat` matrix data, and renders all 4 publication-grade visual plots:
 ```bash
 python main.py
 ```
 
-### 3. Run Unit Tests & PDF Report Generator
+### 3. Run Unit Tests (Optional)
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
-python generate_report_pdf.py
 ```
 
 ---
