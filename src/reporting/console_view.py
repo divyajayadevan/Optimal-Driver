@@ -178,7 +178,7 @@ def display_dashboard(
     print(f"  {CLR_BOLD}Tabular Reports & Matrices:{CLR_RESET}")
     for f in saved_files:
         p = Path(f)
-        badge = "[XLSX]" if p.suffix == ".xlsx" else "[MAT] " if p.suffix == ".mat" else "[CSV] "
+        badge = {".xlsx": "[XLSX]", ".mat": "[MAT] ", ".html": "[WEB] "}.get(p.suffix, "[CSV] ")
         print(f"    {badge} {CLR_CYAN}{p.name:<40}{CLR_RESET} {CLR_DIM}({p.parent}){CLR_RESET}")
 
     print(f"\n  {CLR_BOLD}High-Resolution Visual Plots:{CLR_RESET}")

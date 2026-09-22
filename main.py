@@ -8,9 +8,12 @@ Run:
     python main.py
 """
 
+import io
 import sys
 import time
 import argparse
+import webbrowser
+from contextlib import redirect_stdout
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -35,6 +38,7 @@ from src.reporting.summary_exporter import export_pipeline_artifacts
 from src.reporting.excel_exporter import export_excel_workbook
 from src.reporting.plotter import generate_all_plots
 from src.reporting.console_view import display_dashboard
+from src.reporting.web_exporter import export_web_dashboard
 
 
 def run_pipeline(
@@ -42,6 +46,7 @@ def run_pipeline(
     trip_path: Path = None,
     output_dir: Path = None,
     verbose: bool = True,
+    open_web: bool = False,
 ):
     """
     Execute full optimization workflow with all solvers, Excel exports, and visual plots.
@@ -77,10 +82,12 @@ def run_pipeline(
     # --------------------------------------------------------------------------
     solver_records = []
 
-    # 1. Custom Hungarian
+    # 1. Custom Hungarian (timed without tracing; traced separately for the web view)
     t0 = time.perf_counter()
     h_pairs, h_cost = solve_hungarian_algorithm(cost_matrix)
     t_h = (time.perf_counter() - t0) * 1000
+    hungarian_trace = []
+    solve_hungarian_algorithm(cost_matrix, trace=hungarian_trace)
     solver_records.append({
         "Tool / Solver": "Python (Custom Kuhn-Munkres)",
         "Category": "Bipartite Graph Matching",
@@ -187,8 +194,13 @@ def run_pipeline(
         output_dir=plots_dir,
     )
 
-    # Display console dashboard
-    if verbose:
+    # 5. Interactive web dashboard (listed in the console output, written below)
+    web_path = Path("web") / "index.html"
+    saved_files.append(web_path)
+
+    # Render console dashboard once, capturing it so the web page can replay it
+    console_buffer = io.StringIO()
+    with redirect_stdout(console_buffer):
         display_dashboard(
             shifts_count=len(shifts),
             trips_count=len(trips),
@@ -206,6 +218,39 @@ def run_pipeline(
             saved_files=saved_files,
             saved_plots=saved_plots,
         )
+    console_output = console_buffer.getvalue()
+    if verbose:
+        print(console_output, end="")
+
+    export_web_dashboard(
+        output_path=web_path,
+        cost_matrix=cost_matrix,
+        drivers=drivers,
+        vehicles=vehicles,
+        driver_summary=driver_summary,
+        vehicle_summary=vehicle_summary,
+        df_assignment=df_assignment,
+        df_solver_comparison=df_solver_comparison,
+        hungarian_trace=hungarian_trace,
+        metrics=metrics,
+        split_distance=split_distance,
+        split_trips=split_trips,
+        overview={
+            "shifts_count": len(shifts),
+            "trips_count": len(trips),
+            "avg_shift_dur": avg_shift_dur,
+            "avg_shift_dist": avg_shift_dist,
+            "min_trips": int(trips_per_veh.min()),
+            "max_trips": int(trips_per_veh.max()),
+            "n_drivers": n_drivers,
+            "n_vehicles": n_vehicles,
+        },
+        console_output=console_output,
+        saved_files=saved_files,
+        saved_plots=saved_plots,
+    )
+    if open_web:
+        webbrowser.open(web_path.resolve().as_uri())
 
     return {
         "assignments": df_assignment,
@@ -243,6 +288,11 @@ def main():
         action="store_true",
         help="Suppress dashboard terminal output",
     )
+    parser.add_argument(
+        "--open-web",
+        action="store_true",
+        help="Open the interactive web dashboard (web/index.html) in a browser",
+    )
 
     args = parser.parse_args()
     run_pipeline(
@@ -250,6 +300,7 @@ def main():
         trip_path=args.trip_data,
         output_dir=args.output_dir,
         verbose=not args.quiet,
+        open_web=args.open_web,
     )
 
 
