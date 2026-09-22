@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Driver Allocation Dashboard</title>
+<meta name="description" content="Interactive results of the Optimal Driver-Vehicle Allocation pipeline: step-by-step Hungarian algorithm, cost matrix, solver benchmark, allocation network and workload analytics.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f0f2f5; --border: #e1e4ea;
+  --text: #151922; --muted: #5d6675; --accent: #2f5bea; --accent-soft: rgba(47, 91, 234, .10);
+  --ok: #047857; --ok-soft: rgba(4, 120, 87, .10);
+  --zero-bg: #d9f5e8; --zero-text: #05603f;
+  --cover: rgba(234, 160, 20, .16); --cover-2: rgba(234, 160, 20, .36); --cover-line: #c98a06;
+  --star: #e11d48; --theta: #7c3aed; --plus: #c2410c; --minus: #1d4ed8;
+  --grid: rgba(20, 25, 34, .08);
+  --d0: #2563eb; --d1: #d97706; --d2: #059669; --d3: #9333ea; --d4: #db2777;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --surface: #151920; --surface-2: #1c212a; --border: #2a303b;
+    --text: #e7eaf0; --muted: #9aa3b2; --accent: #7f9dff; --accent-soft: rgba(127, 157, 255, .14);
+    --ok: #34d399; --ok-soft: rgba(52, 211, 153, .12);
+    --zero-bg: rgba(16, 185, 129, .22); --zero-text: #86efc4;
+    --cover: rgba(251, 191, 36, .12); --cover-2: rgba(251, 191, 36, .28); --cover-line: #fbbf24;
+    --star: #fb7185; --theta: #c4b5fd; --plus: #fb923c; --minus: #93b4ff;
+    --grid: rgba(255, 255, 255, .08);
+    --d0: #60a5fa; --d1: #fbbf24; --d2: #34d399; --d3: #c084fc; --d4: #f472b6;
+    --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --surface: #151920; --surface-2: #1c212a; --border: #2a303b;
+  --text: #e7eaf0; --muted: #9aa3b2; --accent: #7f9dff; --accent-soft: rgba(127, 157, 255, .14);
+  --ok: #34d399; --ok-soft: rgba(52, 211, 153, .12);
+  --zero-bg: rgba(16, 185, 129, .22); --zero-text: #86efc4;
+  --cover: rgba(251, 191, 36, .12); --cover-2: rgba(251, 191, 36, .28); --cover-line: #fbbf24;
+  --star: #fb7185; --theta: #c4b5fd; --plus: #fb923c; --minus: #93b4ff;
+  --grid: rgba(255, 255, 255, .08);
+  --d0: #60a5fa; --d1: #fbbf24; --d2: #34d399; --d3: #c084fc; --d4: #f472b6;
+  --shadow: none; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--sans); }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; }
+h2 { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+button, select, input { font: inherit; color: inherit; }
+a { color: var(--accent); }
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 16px; }
+header.top { padding: 28px 0 18px; }
+.top-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 6px; }
+header .sub { color: var(--muted); margin-top: 6px; max-width: 760px; }
+.theme-btn { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+
+nav.tabs { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+nav.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs .wrap::-webkit-scrollbar { display: none; }
+nav.tabs button { border: 0; background: none; padding: 12px 12px 11px; cursor: pointer; color: var(--muted); font-weight: 500; white-space: nowrap; border-bottom: 2px solid transparent; }
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { padding: 22px 0 60px; }
+section.tab[hidden] { display: none; }
+.section-head { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.section-head p { color: var(--muted); max-width: 780px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card + .card, .grid + .card, .card + .grid, .grid + .grid, .kpis + .card, .kpis + .grid { margin-top: 16px; }
+.grid > .card { margin-top: 0; }
+.card h3 { margin-bottom: 4px; }
+.card .hint { color: var(--muted); font-size: 13px; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g-side { grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 1000px) { .g-side, .g3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .g2 { grid-template-columns: minmax(0, 1fr); } }
+
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+.kpi .label { color: var(--muted); font-size: 12.5px; }
+.kpi .value { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .delta { font-size: 12.5px; margin-top: 2px; color: var(--muted); }
+.kpi .delta.good { color: var(--ok); }
+
+.phases { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); counter-reset: ph; }
+.phase { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--surface-2); cursor: pointer; text-align: left; }
+.phase:hover { border-color: var(--accent); }
+.phase .n { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+.phase h4 { font-size: 14px; margin: 4px 0; }
+.phase p { font-size: 13px; color: var(--muted); }
+
+.chart { width: 100%; height: 380px; }
+.chart.tall { height: 560px; }
+.chart.short { height: 300px; }
+.chart-fallback { display: grid; place-items: center; height: 100%; color: var(--muted); border: 1px dashed var(--border); border-radius: 8px; text-align: center; padding: 16px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 10px 0 12px; }
+.controls label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+select, input[type="search"], input[type="number"] { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 6px 9px; }
+input[type="range"] { accent-color: var(--accent); }
+.btn { border: 1px solid var(--border); background: var(--surface); border-radius: 7px; padding: 6px 12px; cursor: pointer; font-weight: 500; }
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { color: #fff; filter: brightness(1.08); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 11px; cursor: pointer; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); font-size: 12.5px; background: var(--surface); }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; }
+button.chip { cursor: pointer; }
+button.chip[aria-pressed="false"] { opacity: .45; }
+.badge { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+
+/* tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.data th { background: var(--surface-2); font-weight: 600; font-size: 12.5px; color: var(--muted); position: sticky; top: 0; cursor: pointer; user-select: none; }
+table.data th.num, table.data td.num { text-align: right; }
+table.data th .arrow { opacity: .6; margin-left: 4px; }
+table.data tbody tr:hover { background: var(--accent-soft); }
+table.data tbody tr:last-child td { border-bottom: 0; }
+.table-scroll { max-height: 520px; overflow: auto; }
+
+/* Hungarian matrix */
+.stepper-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.stepper-bar input[type="range"] { flex: 1 1 200px; min-width: 140px; }
+.step-count { font-family: var(--mono); font-size: 12.5px; color: var(--muted); min-width: 64px; text-align: center; }
+.timeline { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+.timeline button { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; color: var(--muted); }
+.timeline button.done { color: var(--text); }
+.timeline button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.explain { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0; padding: 12px 14px; margin: 12px 0; }
+.explain h4 { font-size: 15px; margin-bottom: 4px; }
+.explain p + p { margin-top: 6px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 12.5px; }
+.stat b { font-family: var(--mono); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--muted); margin: 6px 0 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); display: inline-block; }
+.matrix-wrap { overflow: auto; max-height: 76vh; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+table.mx { border-collapse: separate; border-spacing: 0; font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+table.mx th, table.mx td { padding: 0 6px; height: 28px; min-width: 56px; text-align: right; border-right: 1px solid var(--grid); border-bottom: 1px solid var(--grid); position: relative; }
+table.mx thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-2); color: var(--muted); font-weight: 600; text-align: center; }
+table.mx tbody th, table.mx tfoot th { position: sticky; left: 0; z-index: 2; background: var(--surface-2); color: var(--muted); font-weight: 600; text-align: left; white-space: nowrap; }
+table.mx thead th:first-child { left: 0; z-index: 4; }
+table.mx .lbl-station { font-weight: 400; opacity: .7; font-size: 10px; display: block; line-height: 1; }
+table.mx td.zero { background: var(--zero-bg); color: var(--zero-text); font-weight: 600; }
+table.mx td.cov { background-image: linear-gradient(var(--cover), var(--cover)); }
+table.mx td.cov2 { background-image: linear-gradient(var(--cover-2), var(--cover-2)); }
+table.mx th.covered { background: var(--cover-2); color: var(--text); }
+table.mx th.covered::after { content: ""; position: absolute; inset: 0; border: 2px solid var(--cover-line); pointer-events: none; }
+table.mx td.theta { outline: 2px dashed var(--theta); outline-offset: -3px; }
+table.mx td.rowmin { outline: 2px solid var(--accent); outline-offset: -3px; }
+table.mx td.star { outline: 2px solid var(--star); outline-offset: -2px; font-weight: 700; }
+table.mx td.star::before { content: "★"; position: absolute; left: 3px; top: 1px; font-size: 9px; color: var(--star); }
+table.mx td.minus { color: var(--minus); }
+table.mx td.plus { color: var(--plus); font-weight: 600; }
+table.mx td.dim { opacity: .35; }
+table.mx .margin { background: var(--surface-2); color: var(--accent); font-weight: 600; text-align: right; }
+table.mx td.margin::before { content: ""; }
+table.mx.compact th, table.mx.compact td { min-width: 44px; height: 24px; font-size: 10.5px; padding: 0 4px; }
+.flash { animation: flash .9s ease-out; }
+@keyframes flash { from { box-shadow: inset 0 0 0 40px var(--accent-soft); } to { box-shadow: inset 0 0 0 40px transparent; } }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+.result-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; font-family: var(--mono); font-size: 12.5px; margin-top: 10px; }
+.result-list div { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border); padding: 2px 0; }
+
+/* sandbox editor */
+.editor { overflow-x: auto; }
+.editor table { border-collapse: collapse; }
+.editor th { font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding: 4px 6px; font-weight: 600; }
+.editor input { width: 64px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.editor input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+.verify { margin-top: 10px; font-size: 13px; }
+
+/* bipartite */
+.bip-wrap { overflow-x: auto; }
+svg.bip { width: 100%; min-width: 560px; height: auto; display: block; }
+svg.bip text { font-family: var(--sans); font-size: 12px; fill: var(--text); }
+svg.bip text.sm { font-size: 10.5px; fill: var(--muted); }
+svg.bip .edge { fill: none; stroke-width: 2.2; opacity: .8; transition: opacity .15s, stroke-width .15s; }
+svg.bip .node { stroke: var(--surface); stroke-width: 2; cursor: pointer; }
+svg.bip g.item { cursor: pointer; }
+svg.bip.focus .edge { opacity: .08; }
+svg.bip.focus g.item { opacity: .25; }
+svg.bip.focus .edge.on { opacity: 1; stroke-width: 3.6; }
+svg.bip.focus g.item.on { opacity: 1; }
+svg.bip .cand { fill: none; stroke-width: 1.2; stroke-dasharray: 3 3; }
+.detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 13px; }
+.detail dt { color: var(--muted); }
+.detail dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.rank-list { margin-top: 12px; font-size: 12.5px; font-family: var(--mono); }
+.rank-list div { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; padding: 3px 6px; border-radius: 5px; }
+.rank-list div.me { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* terminal */
+.term { background: #0b0e13; color: #d7dde8; border-radius: 10px; padding: 16px; overflow: auto; font: 12.5px/1.45 var(--mono); white-space: pre; border: 1px solid #242a35; max-height: 78vh; }
+.term .b { font-weight: 700; } .term .dim { opacity: .6; }
+.term .c36 { color: #67d8ef; } .term .c32 { color: #7ee2a8; } .term .c33 { color: #f5c96a; } .term .c34 { color: #82a8ff; } .term .c35 { color: #e39cf5; }
+.term .bg44 { background: #2c4fb8; color: #fff; }
+
+.formula { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.note strong { color: var(--text); }
+.artifact-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.artifact-list li { display: flex; gap: 10px; align-items: center; font-family: var(--mono); font-size: 12.5px; }
+.artifact-list .path { color: var(--muted); }
+.tooltip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-width: 300px; display: none; }
+.tooltip b { font-weight: 600; }
+.tooltip .row { display: flex; justify-content: space-between; gap: 14px; font-family: var(--mono); font-size: 12px; }
+.empty-state { padding: 60px 16px; text-align: center; color: var(--muted); }
+footer { color: var(--muted); font-size: 12.5px; padding: 24px 0 40px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<script>
+  // Apply the saved theme before first paint
+  try { const t = localStorage.getItem("od-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+
+<header class="top">
+  <div class="wrap top-row">
+    <div>
+      <div class="eyebrow">Operations research · Fleet decision support</div>
+      <h1>Optimal Driver–Vehicle Allocation</h1>
+      <p class="sub" id="subtitle">Interactive results of <code>python main.py</code>.</p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle colour theme">Theme: auto</button>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="wrap" role="tablist" id="tabList">
+    <button role="tab" data-tab="overview">Overview</button>
+    <button role="tab" data-tab="hungarian">Hungarian steps</button>
+    <button role="tab" data-tab="sandbox">Algorithm sandbox</button>
+    <button role="tab" data-tab="matrix">Cost matrix</button>
+    <button role="tab" data-tab="solvers">Solver benchmark</button>
+    <button role="tab" data-tab="allocation">Allocation network</button>
+    <button role="tab" data-tab="workload">Workload &amp; utilization</button>
+    <button role="tab" data-tab="data">Data</button>
+    <button role="tab" data-tab="terminal">Terminal output</button>
+  </div>
+</nav>
+
+<main class="wrap" id="app">
+
+<!-- ============================== OVERVIEW ============================== -->
+<section class="tab" id="tab-overview">
+  <div class="section-head">
+    <h2>Pipeline overview</h2>
+    <p>Five phases run by <code>main.py</code>: ingest shift and trip logs, build a 21×21 cost matrix, solve it with four solvers, then measure workload fairness and fleet utilization.</p>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="card">
+    <h3>Pipeline phases</h3>
+    <p class="hint">Click a phase to open its section.</p>
+    <div class="phases" id="phases" style="margin-top:12px"></div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Headline results</h3>
+      <div id="headlines" class="note" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <h3>Generated artifacts</h3>
+      <ul class="artifact-list" id="artifacts"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== HUNGARIAN ============================== -->
+<section class="tab" id="tab-hungarian" hidden>
+  <div class="section-head">
+    <h2>Hungarian algorithm: every step on the real 21×21 matrix</h2>
+    <p>This is the trace recorded by <code>solve_hungarian_algorithm()</code> during this pipeline run. Step through it with the buttons, the slider, the timeline, or the ← → keys. Hover any cell for its values.</p>
+  </div>
+  <div class="card" id="realStepper"></div>
+</section>
+
+<!-- ============================== SANDBOX ============================== -->
+<section class="tab" id="tab-sandbox" hidden>
+  <div class="section-head">
+    <h2>Algorithm sandbox</h2>
+    <p>The same Kuhn–Munkres steps (reduce, cover zeros with the fewest lines, shift by θ, repeat) run in your browser on any small matrix. Edit cells, generate new ones, then step through the solution. Each result is checked against brute force over every permutation.</p>
+  </div>
+  <div class="card">
+    <div class="controls" style="margin-top:0">
+      <label>Size <select id="sbSize"><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option></select></label>
+      <label>Source <select id="sbSource">
+        <option value="random">Random integers (1–20)</option>
+        <option value="hard">Random, needs ≥ 2 θ-adjustments</option>
+        <option value="subset">Random subset of the real cost matrix</option>
+      </select></label>
+      <button class="btn" id="sbGenerate" type="button">Generate</button>
+      <button class="btn primary" id="sbSolve" type="button">Solve step by step</button>
+    </div>
+    <div class="editor" id="sbEditor"></div>
+    <div class="verify" id="sbVerify"></div>
+  </div>
+  <div class="card" id="sbStepper"></div>
+</section>
+
+<!-- ============================== COST MATRIX ============================== -->
+<section class="tab" id="tab-matrix" hidden>
+  <div class="section-head">
+    <h2>Cost matrix C<sub>ij</sub></h2>
+    <p>Each cell is the cost of giving vehicle <i>j</i> to driver <i>i</i>. Stars mark the optimal assignment. Click a cell to see how its cost was built.</p>
+  </div>
+  <div class="grid g-side">
+    <div class="card">
+      <div class="controls" style="margin-top:0">
+        <label>Colour scale <select id="mxScale">
+          <option value="YlGnBu" selected>YlGnBu</option><option value="Viridis">Viridis</option><option value="Cividis">Cividis</option><option value="Blues">Blues</option>
+        </select></label>
+        <label>Order <span class="seg" id="mxOrder"><button type="button" aria-pressed="true" data-v="id">By ID</button><button type="button" aria-pressed="false" data-v="depot">By depot</button></span></label>
+        <label><input type="checkbox" id="mxStars" checked> Optimal assignment</label>
+        <label><input type="checkbox" id="mxBench"> Mark benchmark cells</label>
+      </div>
+      <div id="mxChart" class="chart tall"></div>
+    </div>
+    <div class="card detail" id="mxDetail">
+      <h3>Cell breakdown</h3>
+      <p class="hint">Click any cell in the heatmap.</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3>How a cell's cost is built</h3>
+    <div class="formula" id="mxFormula" style="margin-top:8px"></div>
+    <p class="note" id="mxBenchNote"></p>
+  </div>
+</section>
+
+<!-- ============================== SOLVERS ============================== -->
+<section class="tab" id="tab-solvers" hidden>
+  <div class="section-head">
+    <h2>Multi-solver benchmark</h2>
+    <p>The same assignment problem, minimise Σ C<sub>ij</sub>x<sub>ij</sub> with one vehicle per driver and one driver per vehicle, solved four ways.</p>
+  </div>
+  <div class="kpis" id="solverKpis"></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card">
+      <h3>Runtime</h3>
+      <div class="controls"><label>Scale <span class="seg" id="rtScale"><button type="button" aria-pressed="true" data-v="log">Log</button><button type="button" aria-pressed="false" data-v="linear">Linear</button></span></label></div>
+      <div id="rtChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>Objective value Z</h3>
+      <div class="controls"><label><input type="checkbox" id="zBaseline" checked> Show baseline cost</label></div>
+      <div id="zChart" class="chart"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Results table</h3>
+    <div class="table-wrap" style="margin-top:10px"><div id="solverTable"></div></div>
+    <p class="note">Runtimes are single wall-clock measurements from this run (<code>time.perf_counter</code>), so they vary between runs. PuLP includes starting the external CBC process.</p>
+  </div>
+</section>
+
+<!-- ============================== ALLOCATION ============================== -->
+<section class="tab" id="tab-allocation" hidden>
+  <div class="section-head">
+    <h2>Allocation network</h2>
+    <p>Bipartite matching: drivers on the left, vehicles on the right, one edge per assignment, coloured by depot. Hover or tap a node or edge to focus it.</p>
+  </div>
+  <div class="grid g-side">
+    <div class="card">
+      <div class="controls" style="margin-top:0">
+        <label>Order <span class="seg" id="bipOrder"><button type="button" aria-pressed="false" data-v="id">By ID</button><button type="button" aria-pressed="true" data-v="depot">By depot</button></span></label>
+        <label><input type="checkbox" id="bipCand"> Show alternatives for focused driver</label>
+        <span id="depotChips" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
+      </div>
+      <div class="bip-wrap"><svg class="bip" id="bip"></svg></div>
+    </div>
+    <div class="card detail" id="bipDetail">
+      <h3>Details</h3>
+      <p class="hint">Hover or tap a driver, vehicle or edge.</p>
+    </div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Pairs &amp; cost per depot</h3><div id="depotChart" class="chart short"></div></div>
+    <div class="card"><h3>Assigned cost per driver</h3><div id="pairCostChart" class="chart short"></div></div>
+  </div>
+  <div class="card">
+    <div class="controls" style="margin-top:0;justify-content:space-between">
+      <h3>Assignment schedule</h3>
+      <input type="search" id="pairSearch" placeholder="Filter by driver, vehicle, depot…" aria-label="Filter assignments">
+    </div>
+    <div class="table-wrap"><div id="pairTable"></div></div>
+  </div>
+</section>
+
+<!-- ============================== WORKLOAD ============================== -->
+<section class="tab" id="tab-workload" hidden>
+  <div class="section-head">
+    <h2>Workload fairness &amp; fleet utilization</h2>
+    <p>Workload Balance Index WBI = 1 − σ / W̄ over drivers' average shift distance. Vehicles fall into Low (&lt; 50%), Moderate (50–80%) or High (&gt; 80%) utilization, relative to the busiest vehicle.</p>
+  </div>
+  <div class="kpis" id="wlKpis"></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card">
+      <h3>Driver total distance distribution</h3>
+      <div class="controls"><label>Bins <input type="range" id="histBins" min="3" max="16" value="8"> <span id="histBinsVal" class="mono">8</span></label></div>
+      <div id="histChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>Driver average shift distance vs mean ± σ</h3>
+      <div class="controls"><label>Sort <span class="seg" id="avgSort"><button type="button" aria-pressed="true" data-v="value">By value</button><button type="button" aria-pressed="false" data-v="id">By ID</button></span></label></div>
+      <div id="avgChart" class="chart"></div>
+    </div>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Vehicle utilization: distance vs trips</h3>
+      <div class="controls"><label>Colour by <span class="seg" id="scColor"><button type="button" aria-pressed="true" data-v="Category_distance">Distance tier</button><button type="button" aria-pressed="false" data-v="Category_tripcount">Trip tier</button><button type="button" aria-pressed="false" data-v="StationCode">Depot</button></span></label></div>
+      <div id="scatterChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>Utilization tiers</h3>
+      <div class="controls"><span class="hint">Vehicle count per tier, by method</span></div>
+      <div id="tierChart" class="chart"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== DATA ============================== -->
+<section class="tab" id="tab-data" hidden>
+  <div class="section-head">
+    <h2>Preprocessed data</h2>
+    <p>Driver and vehicle profiles aggregated from the shift and trip logs. These feed the cost matrix. Click a column header to sort.</p>
+  </div>
+  <div class="card">
+    <div class="controls" style="margin-top:0;justify-content:space-between">
+      <h3>Drivers (pilots)</h3>
+      <input type="search" id="drvSearch" placeholder="Filter drivers…" aria-label="Filter drivers">
+    </div>
+    <div class="table-wrap table-scroll"><div id="drvTable"></div></div>
+  </div>
+  <div class="card">
+    <div class="controls" style="margin-top:0;justify-content:space-between">
+      <h3>Vehicles</h3>
+      <input type="search" id="vehSearch" placeholder="Filter vehicles…" aria-label="Filter vehicles">
+    </div>
+    <div class="table-wrap table-scroll"><div id="vehTable"></div></div>
+  </div>
+</section>
+
+<!-- ============================== TERMINAL ============================== -->
+<section class="tab" id="tab-terminal" hidden>
+  <div class="section-head">
+    <h2>Terminal output</h2>
+    <p>The console dashboard exactly as <code>main.py</code> printed it on this run.</p>
+  </div>
+  <div class="controls" style="margin-top:0"><button class="btn" id="copyTerm" type="button">Copy as plain text</button><span class="hint" id="copyMsg"></span></div>
+  <div class="term" id="term"></div>
+</section>
+
+</main>
+
+<footer><div class="wrap" id="footer"></div></footer>
+<div class="tooltip" id="tip" role="tooltip"></div>
+
+<script>const DATA = /*__PIPELINE_DATA__*/null;</script>
+<script>
+"use strict";
+/* ------------------------------------------------------------------ helpers */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) e.append(k.nodeType ? k : String(k));
+  return e;
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (v, d = 4) => (v == null || Number.isNaN(v)) ? "–" : Number(v).toFixed(d);
+const fmtInt = v => Number(v).toLocaleString("en-US");
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const sum = a => a.reduce((s, x) => s + x, 0);
+const EPS = 1e-9;
+const isZero = v => Math.abs(v) < EPS;
+const clean = v => Math.round(v * 1e9) / 1e9;
+
+const tip = $("#tip");
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const pad = 14, w = tip.offsetWidth, hgt = tip.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+  if (y + hgt > innerHeight - 8) y = ev.clientY - hgt - pad;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+
+function segmented(el, onChange) {
+  el.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    $$("button", el).forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    onChange(b.dataset.v);
+  });
+  return () => $("button[aria-pressed='true']", el).dataset.v;
+}
+
+/* Sortable, filterable table */
+function makeTable(host, columns, rows, opts = {}) {
+  let sortKey = opts.sortKey || null, sortDir = opts.sortDir || 1, filter = "";
+  function render() {
+    let data = rows.slice();
+    if (filter) {
+      const q = filter.toLowerCase();
+      data = data.filter(r => columns.some(c => String(c.text ? c.text(r) : r[c.key]).toLowerCase().includes(q)));
+    }
+    if (sortKey) {
+      const col = columns.find(c => c.key === sortKey);
+      const val = r => col.sortVal ? col.sortVal(r) : r[col.key];
+      data.sort((a, b) => { const x = val(a), y = val(b); return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
+    }
+    const thead = h("thead", {}, h("tr", {}, columns.map(c => h("th", {
+      class: c.num ? "num" : null, "data-k": c.key, scope: "col",
+      "aria-sort": sortKey === c.key ? (sortDir > 0 ? "ascending" : "descending") : null,
+    }, c.label, sortKey === c.key ? h("span", { class: "arrow" }, sortDir > 0 ? "▲" : "▼") : null))));
+    const tbody = h("tbody", {}, data.map(r => h("tr", { class: opts.rowClass ? opts.rowClass(r) : null },
+      columns.map(c => h("td", { class: c.num ? "num" : null, html: c.html ? c.html(r) : esc(c.text ? c.text(r) : r[c.key]) })))));
+    if (!data.length) tbody.append(h("tr", {}, h("td", { colspan: columns.length, style: "color:var(--muted)" }, "No matching rows")));
+    host.replaceChildren(h("table", { class: "data" }, thead, tbody));
+    $$("th", host).forEach(th => th.addEventListener("click", () => {
+      const k = th.dataset.k; if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; } render();
+    }));
+  }
+  render();
+  return { setFilter(q) { filter = q.trim(); render(); } };
+}
+
+/* -------------------------------------------------------- Plotly plumbing */
+const PLOTLY_OK = typeof window.Plotly !== "undefined";
+function plot(el, traces, layout = {}, config = {}) {
+  if (typeof el === "string") el = document.getElementById(el);
+  if (!PLOTLY_OK) {
+    el.innerHTML = '<div class="chart-fallback">Charts need Plotly, which loads from cdn.jsdelivr.net.<br>Connect to the internet and reload the page.</div>';
+    return;
+  }
+  const text = cssVar("--text"), muted = cssVar("--muted"), grid = cssVar("--grid"), border = cssVar("--border");
+  const axis = a => Object.assign({ gridcolor: grid, zerolinecolor: grid, linecolor: border, tickfont: { color: muted }, title: { font: { color: muted } }, automargin: true }, a || {});
+  const base = {
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { family: "Inter, system-ui, sans-serif", color: text, size: 12 },
+    margin: { l: 56, r: 16, t: 20, b: 50 },
+    hoverlabel: { bgcolor: cssVar("--surface"), bordercolor: border, font: { color: text, family: "Inter, system-ui, sans-serif" } },
+    legend: { orientation: "h", x: 0, y: 1.12, font: { color: muted } },
+    bargap: 0.25,
+  };
+  const L = Object.assign(base, layout, { xaxis: axis(layout.xaxis), yaxis: axis(layout.yaxis) });
+  if (layout.yaxis2) L.yaxis2 = axis(layout.yaxis2);
+  Plotly.react(el, traces, L, Object.assign({ responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] }, config));
+}
+const depotColor = (() => {
+  const stations = () => [...new Set([...DATA.driver_summary.map(d => d.StationCode), ...DATA.vehicle_summary.map(v => v.StationCode)])].sort((a, b) => a - b);
+  let cache = null;
+  return st => { cache = cache || stations(); return cssVar("--d" + (cache.indexOf(st) % 5)); };
+})();
+const TIER_COLORS = () => ({ Low: cssVar("--d1"), Moderate: cssVar("--d0"), High: cssVar("--d2") });
+
+/* =========================================================== guard / init */
+if (!DATA) {
+  $("#app").innerHTML = '<div class="empty-state"><h2>No pipeline data embedded</h2><p style="margin-top:8px">This is the template. Run <code>python main.py</code> and open <code>web/index.html</code>.</p></div>';
+  throw new Error("No pipeline data");
+}
+
+const N = DATA.drivers.length;
+const drvById = Object.fromEntries(DATA.driver_summary.map(d => [d.Pilotcode, d]));
+const vehById = Object.fromEntries(DATA.vehicle_summary.map(v => [v.VehicleCode, v]));
+const drvRow = DATA.drivers.map(id => drvById[id]);
+const vehRow = DATA.vehicles.map(id => vehById[id]);
+const C = DATA.cost_matrix;
+const finalStep = DATA.hungarian_trace[DATA.hungarian_trace.length - 1];
+const assignCol = finalStep.matching;               // driver index -> vehicle index
+const benchSet = new Set(DATA.benchmark_cells.map(([i, j]) => i + "," + j));
+const M = DATA.metrics;
+
+$("#subtitle").innerHTML = `Interactive results of <code>python main.py</code> for ${N} drivers and ${DATA.vehicles.length} vehicles. Generated ${esc(DATA.generated_at)}.`;
+$("#footer").innerHTML = `Generated by <code>src/reporting/web_exporter.py</code> on ${esc(DATA.generated_at)}. Re-run <code>python main.py</code> to refresh (add <code>--open-web</code> to open it automatically).`;
+
+/* ---------------------------------------------------------------- theme */
+const themeBtn = $("#themeBtn");
+function currentTheme() { return document.documentElement.dataset.theme || "auto"; }
+function setThemeLabel() { themeBtn.textContent = "Theme: " + currentTheme(); }
+themeBtn.addEventListener("click", () => {
+  const next = { auto: "light", light: "dark", dark: "auto" }[currentTheme()];
+  if (next === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next;
+  try { next === "auto" ? localStorage.removeItem("od-theme") : localStorage.setItem("od-theme", next); } catch (e) {}
+  setThemeLabel(); rerenderCharts();
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (currentTheme() === "auto") rerenderCharts(); });
+setThemeLabel();
+
+/* ----------------------------------------------------------------- tabs */
+const renderers = {};          // tab -> function drawing its charts (re-run on theme change)
+const drawn = new Set();
+let activeTab = "overview";
+function showTab(name, push = true) {
+  if (!document.getElementById("tab-" + name)) name = "overview";
+  activeTab = name;
+  $$("#tabList button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  $$("section.tab").forEach(s => { s.hidden = s.id !== "tab-" + name; });
+  if (renderers[name] && !drawn.has(name)) { renderers[name](); drawn.add(name); }
+  if (PLOTLY_OK) $$(`#tab-${name} .js-plotly-plot`).forEach(p => Plotly.Plots.resize(p));
+  if (push) history.replaceState(null, "", "#" + name);
+}
+function rerenderCharts() { drawn.clear(); showTab(activeTab, false); }
+$("#tabList").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
+
+/* ============================================================ OVERVIEW */
+(function overview() {
+  const o = DATA.overview;
+  const kpis = [
+    ["Fleet scale", `${o.n_drivers} × ${o.n_vehicles}`, "drivers × vehicles"],
+    ["Shift records", fmtInt(o.shifts_count), `${fmtInt(o.trips_count)} trip transactions`],
+    ["Avg shift", `${o.avg_shift_dur.toFixed(2)} h`, `${o.avg_shift_dist.toFixed(2)} km per shift`],
+    ["Trips per vehicle", `${o.min_trips}–${o.max_trips}`, "min – max"],
+    ["Optimal cost Z", fmt(M.optimized_cost), `baseline ${fmt(M.baseline_cost)}`],
+    ["Cost reduction", `−${M.cost_reduction_pct.toFixed(2)}%`, "vs baseline allocation", "good"],
+    ["Workload balance", fmt(M.wbi), `+${M.wbi_improvement_pct.toFixed(2)}% vs baseline ${fmt(M.baseline_wbi)}`, "good"],
+  ];
+  $("#kpis").replaceChildren(...kpis.map(([l, v, d, cls]) => h("div", { class: "kpi" }, h("div", { class: "label" }, l), h("div", { class: "value" }, v), h("div", { class: "delta " + (cls || "") }, d))));
+
+  const phases = [
+    ["01", "Ingestion", "Load ShiftData.csv and TripData.csv, compute shift durations, and profile each driver and vehicle.", "data"],
+    ["02", "Cost matrix", "Build a 21×21 multi-objective cost matrix from distance, duration, utilization and depot penalties.", "matrix"],
+    ["03", "Optimisation", "Kuhn–Munkres (step by step), cross-checked by SciPy, PuLP and OR-Tools.", "hungarian"],
+    ["04", "Fairness & utilization", "Workload Balance Index, variance and fleet utilization tiers.", "workload"],
+    ["05", "Reporting", "CSV, Excel, MATLAB, plots, and this web page.", "terminal"],
+  ];
+  $("#phases").replaceChildren(...phases.map(([n, t, d, tab]) => h("button", { class: "phase", type: "button", onclick: () => showTab(tab) }, h("div", { class: "n" }, "PHASE " + n), h("h4", {}, t), h("p", {}, d))));
+
+  const same = DATA.assignment.filter(a => a.SameStation).length;
+  const zs = DATA.solvers.map(s => s["Optimal Cost (Z)"]);
+  const converged = zs.every(z => Math.abs(z - zs[0]) < 1e-4);
+  const cover = DATA.hungarian_trace.filter(s => s.step === "cover").length;
+  $("#headlines").innerHTML = `
+    <p><strong>${same} / ${N}</strong> drivers are paired with a vehicle from their own depot, so there is no cross-depot deadheading.</p>
+    <p style="margin-top:8px"><strong>${converged ? "All 4 solvers agree" : "Solvers disagree"}</strong> on the optimum Z = ${fmt(zs[0])}. The custom Kuhn–Munkres solver took ${fmt(DATA.solvers[0]["Execution Time (ms)"], 3)} ms.</p>
+    <p style="margin-top:8px">The Hungarian run needed <strong>${cover}</strong> line-covering / θ-adjustment round${cover === 1 ? "" : "s"} after row and column reduction. ${cover === 0 ? "The reduced matrix already contained 21 independent zeros. Try the <a href=\"#sandbox\" data-go=\"sandbox\">sandbox</a> to watch the covering steps on a harder matrix." : ""}</p>
+    <p style="margin-top:8px">Workload: mean W̄ = ${M.mean_workload.toFixed(2)} km, σ = ${M.std_workload.toFixed(2)} km, WBI = ${fmt(M.wbi)}.</p>`;
+  $("#headlines").addEventListener("click", e => { const a = e.target.closest("[data-go]"); if (a) { e.preventDefault(); showTab(a.dataset.go); } });
+
+  const badge = p => ({ xlsx: "XLSX", mat: "MAT", csv: "CSV", html: "WEB", png: "PLOT" }[p.split(".").pop().toLowerCase()] || "FILE");
+  const split = p => { const parts = p.split(/[\\/]/); return [parts.pop(), parts.join("/") || "."]; };
+  $("#artifacts").replaceChildren(...[...DATA.saved_files, ...DATA.saved_plots].map(p => {
+    const [name, dir] = split(p);
+    return h("li", {}, h("span", { class: "badge" + (badge(p) === "WEB" ? " ok" : "") }, badge(p)), h("span", {}, name), h("span", { class: "path" }, dir));
+  }));
+})();
+
+/* ================================================= HUNGARIAN: shared logic */
+/* Mirrors solve_hungarian_algorithm() in src/modeling/hungarian_solver.py */
+function zeroMatching(m) {
+  const n = m.length, matchRow = Array(n).fill(-1), matchCol = Array(n).fill(-1);
+  function dfs(u, visited) {
+    for (let v = 0; v < n; v++) {
+      if (isZero(m[u][v]) && !visited[v]) {
+        visited[v] = true;
+        if (matchCol[v] < 0 || dfs(matchCol[v], visited)) { matchRow[u] = v; matchCol[v] = u; return true; }
+      }
+    }
+    return false;
+  }
+  let size = 0;
+  for (let u = 0; u < n; u++) if (dfs(u, Array(n).fill(false))) size++;
+  return { matchRow, matchCol, size };
+}
+
+function hungarianTrace(cost) {
+  const n = cost.length, trace = [];
+  let m = cost.map(r => r.slice());
+  const rec = (step, extra) => trace.push(Object.assign({ step, matrix: m.map(r => r.slice()) }, extra || {}));
+  rec("original");
+  const rowMins = m.map(r => Math.min(...r));
+  m = m.map((r, i) => r.map(v => clean(v - rowMins[i])));
+  rec("row_reduction", { row_mins: rowMins });
+  const colMins = m[0].map((_, j) => Math.min(...m.map(r => r[j])));
+  m = m.map(r => r.map((v, j) => clean(v - colMins[j])));
+  rec("col_reduction", { col_mins: colMins });
+  let iteration = 1, matchRow;
+  for (;;) {
+    const res = zeroMatching(m); matchRow = res.matchRow;
+    if (res.size === n) break;
+    // Kőnig: mark unmatched rows, then alternate zero-columns / matched rows
+    const markedRows = matchRow.map(c => c === -1), markedCols = Array(n).fill(false);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let r = 0; r < n; r++) if (markedRows[r]) for (let c = 0; c < n; c++) if (isZero(m[r][c]) && !markedCols[c]) { markedCols[c] = true; changed = true; }
+      for (let c = 0; c < n; c++) if (markedCols[c]) { const r = res.matchCol[c]; if (r !== -1 && !markedRows[r]) { markedRows[r] = true; changed = true; } }
+    }
+    const coveredRows = markedRows.map(x => !x), coveredCols = markedCols.slice();
+    let theta = Infinity;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (!coveredRows[r] && !coveredCols[c]) theta = Math.min(theta, m[r][c]);
+    rec("cover", { iteration, matching: matchRow.slice(), matching_size: res.size, covered_rows: coveredRows, covered_cols: coveredCols, theta });
+    m = m.map((row, r) => row.map((v, c) => clean(!coveredRows[r] && !coveredCols[c] ? v - theta : coveredRows[r] && coveredCols[c] ? v + theta : v)));
+    rec("adjust", { iteration, covered_rows: coveredRows, covered_cols: coveredCols, theta });
+    if (++iteration > 1000) throw new Error("Hungarian did not converge");
+  }
+  const total = sum(matchRow.map((c, r) => cost[r][c]));
+  rec("optimal", { matching: matchRow.slice(), total_cost: total });
+  return trace;
+}
+
+function bruteForce(cost) {
+  const n = cost.length, used = Array(n).fill(false), cur = [];
+  let best = Infinity, bestPerm = null, count = 0;
+  (function go(r, acc) {
+    if (acc >= best - EPS && r < n) return;       // prune: cannot improve
+    if (r === n) { count++; if (acc < best - EPS) { best = acc; bestPerm = cur.slice(); } return; }
+    for (let c = 0; c < n; c++) if (!used[c]) { used[c] = true; cur.push(c); go(r + 1, acc + cost[r][c]); cur.pop(); used[c] = false; }
+  })(0, 0);
+  let fact = 1; for (let k = 2; k <= n; k++) fact *= k;
+  return { best, bestPerm, permutations: fact };
+}
+
+/* ============================================ HUNGARIAN: step-by-step viewer */
+function createStepper(root, cfg) {
+  const { trace, rows, cols, decimals, title, compact } = cfg;
+  const n = trace[0].matrix.length, orig = trace[0].matrix;
+  let idx = 0, timer = null, valueMode = "current", showDelta = true, lastIdx = -1;
+
+  const labelOf = s => ({
+    original: "Original C", row_reduction: "Row reduction", col_reduction: "Column reduction",
+    cover: `Cover lines #${s.iteration}`, adjust: `θ-adjust #${s.iteration}`, optimal: "Optimal assignment",
+  }[s.step]);
+
+  const prevBtn = h("button", { class: "btn", type: "button", "aria-label": "Previous step" }, "← Prev");
+  const playBtn = h("button", { class: "btn", type: "button" }, "▶ Play");
+  const nextBtn = h("button", { class: "btn primary", type: "button", "aria-label": "Next step" }, "Next →");
+  const slider = h("input", { type: "range", min: 0, max: trace.length - 1, value: 0, "aria-label": "Step" });
+  const counter = h("span", { class: "step-count" });
+  const modeSeg = h("span", { class: "seg" },
+    h("button", { type: "button", "aria-pressed": "true", "data-v": "current" }, "Current values"),
+    h("button", { type: "button", "aria-pressed": "false", "data-v": "original" }, "Original costs"));
+  const deltaChk = h("input", { type: "checkbox", checked: true });
+  const compactChk = h("input", { type: "checkbox", checked: !!compact });
+  const timeline = h("div", { class: "timeline", role: "list" });
+  const explain = h("div", { class: "explain", "aria-live": "polite" });
+  const legend = h("div", { class: "legend" });
+  const matrixWrap = h("div", { class: "matrix-wrap" });
+  const result = h("div");
+
+  root.replaceChildren(
+    title ? h("h3", { style: "margin-bottom:10px" }, title) : "",
+    h("div", { class: "stepper-bar" }, prevBtn, playBtn, nextBtn, slider, counter),
+    timeline, explain,
+    h("div", { class: "controls" }, h("label", {}, "Show ", modeSeg), h("label", {}, deltaChk, " Highlight changes"), h("label", {}, compactChk, " Compact")),
+    legend, matrixWrap, result);
+
+  trace.forEach((s, i) => timeline.append(h("button", { type: "button", role: "listitem", "data-i": i }, labelOf(s))));
+  timeline.addEventListener("click", e => { const b = e.target.closest("button"); if (b) go(+b.dataset.i); });
+  prevBtn.onclick = () => go(idx - 1);
+  nextBtn.onclick = () => go(idx + 1);
+  slider.oninput = () => go(+slider.value);
+  playBtn.onclick = () => timer ? stop() : play();
+  segmented(modeSeg, v => { valueMode = v; render(); });
+  deltaChk.onchange = () => { showDelta = deltaChk.checked; render(); };
+  compactChk.onchange = () => render();
+
+  function play() {
+    if (idx >= trace.length - 1) go(0);
+    playBtn.textContent = "❚❚ Pause";
+    timer = setInterval(() => { if (idx >= trace.length - 1) stop(); else go(idx + 1); }, 1600);
+  }
+  function stop() { clearInterval(timer); timer = null; playBtn.textContent = "▶ Play"; }
+  function go(i) { idx = Math.max(0, Math.min(trace.length - 1, i)); render(); }
+
+  const nf = v => fmt(v, decimals);
+  const countZeros = m => sum(m.map(r => r.filter(isZero).length));
+
+  function explanation(s, i) {
+    const next = trace[i + 1], zeros = countZeros(s.matrix);
+    const mm = zeroMatching(s.matrix);
+    let head, body = [], stats = [["Zeros", zeros], ["Independent zeros", `${mm.size} / ${n}`]];
+    switch (s.step) {
+      case "original":
+        head = "Start: the original cost matrix";
+        body.push(`Rows are drivers and columns are vehicles. The goal is to pick one cell in every row and column so that the total cost is as small as possible.`);
+        body.push(`The outlined cell in each row is that row's minimum. It gets subtracted from the whole row next, which leaves at least one zero per row and keeps the optimal assignment the same.`);
+        stats.push(["Matrix sum", nf(sum(s.matrix.map(sum)))]);
+        break;
+      case "row_reduction":
+        head = "Step 1: row reduction";
+        body.push(`Each row's minimum (right margin) was subtracted from every cell in that row. Every row now has a zero. Total subtracted: ${nf(sum(s.row_mins))}.`);
+        body.push(`Subtracting a constant from a row lowers every assignment by that constant, so the ranking of assignments doesn't change.`);
+        stats.push(["Σ row minima", nf(sum(s.row_mins))]);
+        break;
+      case "col_reduction": {
+        const nz = s.col_mins.filter(v => !isZero(v)).length;
+        head = "Step 2: column reduction";
+        body.push(nz ? `Each column's minimum (bottom margin) was subtracted from that column. ${nz} column${nz > 1 ? "s" : ""} had no zero yet.` : `Every column already had a zero, so all column minima are 0 and the matrix is unchanged.`);
+        body.push(next && next.step === "optimal"
+          ? `A maximum matching on the zero cells finds <b>${n} independent zeros</b>, one per row and column. That is a complete assignment with reduced cost 0, so it is optimal. No line-covering is needed.`
+          : `The most independent zeros that can be picked is ${mm.size}, fewer than ${n}. The algorithm now covers every zero with the fewest possible lines.`);
+        stats.push(["Σ column minima", nf(sum(s.col_mins))]);
+        break;
+      }
+      case "cover": {
+        const lines = sum(s.covered_rows.map(Number)) + sum(s.covered_cols.map(Number));
+        head = `Step 3 (round ${s.iteration}): cover all zeros with ${lines} lines`;
+        body.push(`By Kőnig's theorem, the fewest lines that cover every zero equals the maximum matching size (${s.matching_size}). Covered rows and columns are shaded, and ★ marks the current matching.`);
+        body.push(`${lines} < ${n}, so there is no complete zero assignment yet. The smallest uncovered value is <b>θ = ${nf(s.theta)}</b> (dashed outline).`);
+        stats.push(["Lines", lines], ["θ", nf(s.theta)]);
+        break;
+      }
+      case "adjust":
+        head = `Step 4 (round ${s.iteration}): adjust by θ = ${nf(s.theta)}`;
+        body.push(`θ was <span style="color:var(--minus);font-weight:600">subtracted from every uncovered cell</span> and <span style="color:var(--plus);font-weight:600">added to every cell covered twice</span> (row and column). Cells covered once stay the same.`);
+        body.push(`This creates at least one new zero where θ was and keeps every value ≥ 0. Next, try to find ${n} independent zeros again.`);
+        stats.push(["θ", nf(s.theta)]);
+        break;
+      case "optimal": {
+        head = "Done: optimal assignment";
+        body.push(`${n} independent zeros (★) were found. Mapping them back to the original costs gives the minimum total <b>Z = ${fmt(s.total_cost, decimals === 0 ? 0 : 4)}</b>.`);
+        body.push(`Switch to “Original costs” to see the cost of each starred cell.`);
+        stats.push(["Z", fmt(s.total_cost, decimals === 0 ? 0 : 4)]);
+        break;
+      }
+    }
+    explain.replaceChildren(h("h4", {}, head), ...body.map(t => h("p", { html: t })),
+      h("div", { class: "stats" }, stats.map(([k, v]) => h("span", { class: "stat" }, k + ": ", h("b", {}, String(v))))));
+  }
+
+  function legendFor(s) {
+    const items = [[`background:var(--zero-bg)`, "Zero"]];
+    if (s.step === "original") items.push(["outline:2px solid var(--accent);outline-offset:-3px", "Row minimum"]);
+    if (s.step === "cover" || s.step === "adjust") items.push(["background:var(--cover)", "Covered once"], ["background:var(--cover-2)", "Covered twice"]);
+    if (s.step === "cover") items.push(["outline:2px dashed var(--theta);outline-offset:-3px", "θ (smallest uncovered)"]);
+    if (s.step === "adjust" && showDelta) items.push(["background:transparent;border-color:var(--minus)", "−θ", "var(--minus)"], ["background:transparent;border-color:var(--plus)", "+θ", "var(--plus)"]);
+    if (s.matching) items.push(["outline:2px solid var(--star);outline-offset:-2px", "★ Matched zero"]);
+    legend.replaceChildren(...items.map(([st, t, col]) => h("span", {}, h("i", { class: "sw", style: st }), col ? h("span", { style: `color:${col};font-weight:600` }, t) : t)));
+  }
+
+  function render() {
+    const s = trace[idx], prev = trace[idx - 1];
+    slider.value = idx; counter.textContent = `${idx + 1} / ${trace.length}`;
+    prevBtn.disabled = idx === 0; nextBtn.disabled = idx === trace.length - 1;
+    $$("button", timeline).forEach((b, i) => { b.classList.toggle("active", i === idx); b.classList.toggle("done", i < idx); });
+    explanation(s, idx); legendFor(s);
+
+    const cr = s.covered_rows || [], cc = s.covered_cols || [];
+    const match = s.matching || null;
+    const rowMinCol = s.step === "original" ? s.matrix.map(r => { const mn = Math.min(...r); return r.findIndex(v => Math.abs(v - mn) < EPS); }) : null;
+
+    const table = h("table", { class: "mx" + (compactChk.checked ? " compact" : "") });
+    const headRow = h("tr", {}, h("th", { scope: "col" }, ""));
+    cols.forEach((c, j) => headRow.append(h("th", { scope: "col", class: cc[j] ? "covered" : null }, c.label, c.sub ? h("span", { class: "lbl-station" }, c.sub) : "")));
+    if (s.step === "row_reduction") headRow.append(h("th", { scope: "col" }, "− row min"));
+    if (s.step === "cover") headRow.append(h("th", { scope: "col" }, "line"));
+    table.append(h("thead", {}, headRow));
+
+    const tbody = h("tbody");
+    for (let i = 0; i < n; i++) {
+      const tr = h("tr", {}, h("th", { scope: "row", class: cr[i] ? "covered" : null }, rows[i].label, rows[i].sub ? h("span", { class: "lbl-station" }, rows[i].sub) : ""));
+      for (let j = 0; j < n; j++) {
+        const v = s.matrix[i][j], cls = [];
+        const shown = valueMode === "original" ? orig[i][j] : v;
+        if (isZero(v)) cls.push("zero");
+        const covers = (cr[i] ? 1 : 0) + (cc[j] ? 1 : 0);
+        if (covers === 1) cls.push("cov"); else if (covers === 2) cls.push("cov2");
+        if (s.step === "cover" && !covers && Math.abs(v - s.theta) < EPS) cls.push("theta");
+        if (rowMinCol && rowMinCol[i] === j) cls.push("rowmin");
+        if (match && match[i] === j) cls.push("star");
+        if (showDelta && prev && s.step === "adjust") {
+          const d = v - prev.matrix[i][j];
+          if (d < -EPS) cls.push("minus"); else if (d > EPS) cls.push("plus");
+        }
+        if (s.step === "optimal" && valueMode === "original" && match[i] !== j) cls.push("dim");
+        const td = h("td", { class: cls.join(" ") || null, "data-i": i, "data-j": j }, nf(shown));
+        if (showDelta && lastIdx !== idx && prev && !isZero(v - prev.matrix[i][j])) td.classList.add("flash");
+        tr.append(td);
+      }
+      if (s.step === "row_reduction") tr.append(h("td", { class: "margin" }, "−" + nf(s.row_mins[i])));
+      if (s.step === "cover") tr.append(h("td", { class: "margin", style: "text-align:center" }, cr[i] ? "━" : ""));
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    if (s.step === "col_reduction" || s.step === "cover") {
+      const fr = h("tr", {}, h("th", { scope: "row" }, s.step === "col_reduction" ? "− col min" : "line"));
+      for (let j = 0; j < n; j++) fr.append(h("td", { class: "margin", style: s.step === "cover" ? "text-align:center" : null }, s.step === "col_reduction" ? "−" + nf(s.col_mins[j]) : (cc[j] ? "┃" : "")));
+      table.append(h("tfoot", {}, fr));
+    }
+    const scroll = [matrixWrap.scrollLeft, matrixWrap.scrollTop];
+    matrixWrap.replaceChildren(table);
+    [matrixWrap.scrollLeft, matrixWrap.scrollTop] = scroll;
+
+    table.addEventListener("mousemove", e => {
+      const td = e.target.closest("td[data-i]"); if (!td) return hideTip();
+      const i = +td.dataset.i, j = +td.dataset.j, v = s.matrix[i][j];
+      const lines = [["Original cost", nf(orig[i][j])], ["Value at this step", nf(v)]];
+      if (prev) lines.push(["Previous step", nf(prev.matrix[i][j])]);
+      if (s.step === "row_reduction") lines.push(["Row min subtracted", nf(s.row_mins[i])]);
+      if (s.step === "col_reduction") lines.push(["Column min subtracted", nf(s.col_mins[j])]);
+      if (s.covered_rows) lines.push(["Covered by", [cr[i] ? "row" : "", cc[j] ? "column" : ""].filter(Boolean).join(" + ") || "none"]);
+      showTip(`<b>${esc(rows[i].label)} → ${esc(cols[j].label)}</b>${match && match[i] === j ? ' <span style="color:var(--star)">★ matched</span>' : ""}` +
+        lines.map(([k, val]) => `<div class="row"><span>${k}</span><span>${val}</span></div>`).join(""), e);
+    });
+    table.addEventListener("mouseleave", hideTip);
+
+    if (s.step === "optimal") {
+      result.replaceChildren(h("h3", { style: "margin-top:16px" }, "Assignment read off the matrix"),
+        h("div", { class: "result-list" }, s.matching.map((c, r) => h("div", {}, h("span", {}, `${rows[r].label} → ${cols[c].label}`), h("span", {}, nf(orig[r][c]))))),
+        h("p", { class: "note" }, h("strong", {}, `Z = ${s.matching.map((c, r) => nf(orig[r][c])).join(" + ")} = ${fmt(s.total_cost, decimals === 0 ? 0 : 4)}`)));
+    } else result.replaceChildren();
+    lastIdx = idx;
+  }
+
+  render();
+  return { go, get idx() { return idx; }, stop };
+}
+
+/* Real run stepper */
+let realStepper;
+renderers.hungarian = () => {
+  if (realStepper) return;
+  realStepper = createStepper($("#realStepper"), {
+    trace: DATA.hungarian_trace, decimals: 4, compact: false,
+    rows: drvRow.map(d => ({ label: "D" + d.Pilotcode, sub: "stn " + d.StationCode })),
+    cols: vehRow.map(v => ({ label: "V" + v.VehicleCode, sub: "stn " + v.StationCode })),
+  });
+};
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input, select, textarea")) return;
+  const st = activeTab === "hungarian" ? realStepper : activeTab === "sandbox" ? sbStepper : null;
+  if (!st) return;
+  if (e.key === "ArrowRight") { st.go(st.idx + 1); e.preventDefault(); }
+  if (e.key === "ArrowLeft") { st.go(st.idx - 1); e.preventDefault(); }
+});
+
+/* ============================================================== SANDBOX */
+let sbStepper = null, sbMatrix = [], sbRows = [], sbCols = [];
+let seed = 20240601;
+const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
+function sample(k, n) { const idx = [...Array(n).keys()]; for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } return idx.slice(0, k).sort((a, b) => a - b); }
+
+function sbGenerate() {
+  const n = +$("#sbSize").value, src = $("#sbSource").value;
+  if (src === "subset") {
+    const ri = sample(n, N), ci = sample(n, N);
+    sbMatrix = ri.map(i => ci.map(j => C[i][j]));
+    sbRows = ri.map(i => ({ label: "D" + DATA.drivers[i], sub: "stn " + drvRow[i].StationCode }));
+    sbCols = ci.map(j => ({ label: "V" + DATA.vehicles[j], sub: "stn " + vehRow[j].StationCode }));
+  } else {
+    let tries = 0;
+    do {
+      sbMatrix = [...Array(n)].map(() => [...Array(n)].map(() => randInt(1, 20)));
+      tries++;
+    } while (src === "hard" && tries < 400 && hungarianTrace(sbMatrix).filter(s => s.step === "cover").length < 2);
+    sbRows = [...Array(n)].map((_, i) => ({ label: "R" + (i + 1) }));
+    sbCols = [...Array(n)].map((_, j) => ({ label: "C" + (j + 1) }));
+  }
+  drawEditor(); sbSolve();
+}
+function drawEditor() {
+  const n = sbMatrix.length;
+  const t = h("table", {}, h("thead", {}, h("tr", {}, h("th"), sbCols.map(c => h("th", {}, c.label)))));
+  const tb = h("tbody");
+  for (let i = 0; i < n; i++) {
+    tb.append(h("tr", {}, h("th", { style: "text-align:left" }, sbRows[i].label), [...Array(n)].map((_, j) => h("td", {}, h("input", {
+      type: "number", step: "any", min: 0, value: sbMatrix[i][j], "data-i": i, "data-j": j, "aria-label": `Cost ${sbRows[i].label} to ${sbCols[j].label}`,
+    })))));
+  }
+  t.append(tb);
+  $("#sbEditor").replaceChildren(t);
+}
+function sbSolve() {
+  let bad = false;
+  $$("#sbEditor input").forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!Number.isFinite(v)) { bad = true; inp.style.borderColor = "var(--star)"; } else { inp.style.borderColor = ""; sbMatrix[+inp.dataset.i][+inp.dataset.j] = v; }
+  });
+  if (bad) { $("#sbVerify").innerHTML = '<span style="color:var(--star)">Every cell needs a number.</span>'; return; }
+  const trace = hungarianTrace(sbMatrix);
+  const allInt = sbMatrix.every(r => r.every(Number.isInteger));
+  const bf = bruteForce(sbMatrix), z = trace[trace.length - 1].total_cost;
+  const ok = Math.abs(bf.best - z) < 1e-6;
+  const rounds = trace.filter(s => s.step === "cover").length;
+  $("#sbVerify").innerHTML = `<span class="badge ${ok ? "ok" : ""}">${ok ? "VERIFIED" : "MISMATCH"}</span> Hungarian Z = <b class="mono">${fmt(z, allInt ? 0 : 4)}</b>, brute force over ${fmtInt(bf.permutations)} permutations = <b class="mono">${fmt(bf.best, allInt ? 0 : 4)}</b>. ${rounds} covering round${rounds === 1 ? "" : "s"}, ${trace.length} steps.`;
+  if (sbStepper) sbStepper.stop();
+  sbStepper = createStepper($("#sbStepper"), { trace, rows: sbRows, cols: sbCols, decimals: allInt ? 0 : 4 });
+}
+renderers.sandbox = () => { if (!sbMatrix.length) { $("#sbSource").value = "hard"; sbGenerate(); } };
+$("#sbGenerate").onclick = sbGenerate;
+$("#sbSolve").onclick = sbSolve;
+$("#sbEditor").addEventListener("keydown", e => { if (e.key === "Enter") sbSolve(); });
+
+/* ========================================================== COST MATRIX */
+const cfg = DATA.config;
+function cellFormula(i, j) {
+  const d = drvRow[i], v = vehRow[j];
+  const base = cfg.w1 * d.d_norm + cfg.w2 * d.t_norm + cfg.w3 * v.r_norm;
+  const pen = d.StationCode === v.StationCode ? 0 : cfg.station_penalty;
+  const diff = Math.abs(d.d_norm - v.r_norm) * cfg.distance_mismatch_coef;
+  return { base, pen, diff, total: Math.round((base + pen + diff + cfg.base_offset) * 1e4) / 1e4 };
+}
+$("#mxFormula").innerHTML = `C<sub>ij</sub> = ${cfg.w1}·D̂<sub>i</sub> + ${cfg.w2}·T̂<sub>i</sub> + ${cfg.w3}·R̂<sub>j</sub> + ${cfg.station_penalty}·[depot<sub>i</sub> ≠ depot<sub>j</sub>] + ${cfg.distance_mismatch_coef}·|D̂<sub>i</sub> − R̂<sub>j</sub>| + ${cfg.base_offset}`;
+$("#mxBenchNote").innerHTML = `D̂, T̂ are the driver's average shift distance and duration, and R̂ is the vehicle's average distance, each divided by its maximum. <strong>${DATA.benchmark_cells.length} cells</strong> are not computed from this formula. They are set directly from <code>OPTIMAL_TARGET_MAP</code> in <code>src/modeling/cost_matrix.py</code>. Tick “Mark benchmark cells” to see which ones.`;
+
+let mxOrder = "id";
+function orderIdx(kind) {
+  const idx = [...Array(N).keys()];
+  if (kind === "depot") {
+    const rows = idx.slice().sort((a, b) => drvRow[a].StationCode - drvRow[b].StationCode || a - b);
+    const cols = rows.map(i => assignCol[i]);     // columns follow rows' partners -> diagonal
+    return { rows, cols };
+  }
+  return { rows: idx, cols: idx.slice() };
+}
+function drawMatrix() {
+  const { rows, cols } = orderIdx(mxOrder);
+  const z = rows.map(i => cols.map(j => C[i][j]));
+  const custom = rows.map(i => cols.map(j => [drvRow[i].StationCode, vehRow[j].StationCode, benchSet.has(i + "," + j) ? "benchmark target" : "formula", assignCol[i] === j ? "★ optimal" : ""]));
+  const xl = cols.map(j => "V" + DATA.vehicles[j]), yl = rows.map(i => "D" + DATA.drivers[i]);
+  const scale = $("#mxScale").value;
+  const traces = [{
+    type: "heatmap", z, x: xl, y: yl, customdata: custom, colorscale: scale, reversescale: scale === "YlGnBu" || scale === "Blues",
+    colorbar: { title: { text: "C<sub>ij</sub>", side: "right" }, thickness: 12, outlinewidth: 0, tickfont: { color: cssVar("--muted") } },
+    hovertemplate: "<b>%{y} → %{x}</b><br>Cost: %{z:.4f}<br>Depots: %{customdata[0]} → %{customdata[1]}<br>Source: %{customdata[2]}<br>%{customdata[3]}<extra></extra>",
+    xgap: 1, ygap: 1,
+  }];
+  if ($("#mxStars").checked) {
+    traces.push({ type: "scatter", mode: "markers", x: rows.map(i => "V" + DATA.vehicles[assignCol[i]]), y: rows.map(i => "D" + DATA.drivers[i]),
+      marker: { symbol: "star", size: 13, color: cssVar("--star"), line: { color: "#fff", width: 1 } }, name: "Optimal", hoverinfo: "skip" });
+  }
+  if ($("#mxBench").checked) {
+    traces.push({ type: "scatter", mode: "markers", x: DATA.benchmark_cells.map(([, j]) => "V" + DATA.vehicles[j]), y: DATA.benchmark_cells.map(([i]) => "D" + DATA.drivers[i]),
+      marker: { symbol: "square-open", size: 22, color: cssVar("--theta"), line: { width: 2 } }, name: "Benchmark cell", hoverinfo: "skip" });
+  }
+  plot("mxChart", traces, {
+    margin: { l: 70, r: 10, t: 10, b: 70 }, showlegend: false,
+    xaxis: { tickangle: -45, tickfont: { size: 10, family: "JetBrains Mono, monospace" }, showgrid: false },
+    yaxis: { autorange: "reversed", tickfont: { size: 10, family: "JetBrains Mono, monospace" }, showgrid: false },
+  });
+  const el = $("#mxChart");
+  if (PLOTLY_OK && !el.dataset.bound) {
+    el.dataset.bound = "1";
+    el.on("plotly_click", ev => {
+      const p = ev.points[0];
+      const i = DATA.drivers.indexOf(+String(p.y).slice(1)), j = DATA.vehicles.indexOf(+String(p.x).slice(1));
+      if (i >= 0 && j >= 0) cellDetail(i, j);
+    });
+  }
+}
+function cellDetail(i, j) {
+  const d = drvRow[i], v = vehRow[j], f = cellFormula(i, j), isBench = benchSet.has(i + "," + j);
+  const ranked = [...Array(N).keys()].sort((a, b) => C[i][a] - C[i][b]);
+  const rank = ranked.indexOf(j) + 1;
+  const assigned = assignCol[i] === j;
+  const host = $("#mxDetail");
+  host.replaceChildren(
+    h("h3", {}, `D${d.Pilotcode} → V${v.VehicleCode}`),
+    h("p", { class: "hint" }, `${assigned ? "★ In the optimal assignment. " : ""}Rank ${rank} of ${N} for this driver.`),
+    h("dl", {},
+      h("dt", {}, "Cell cost"), h("dd", {}, h("b", {}, fmt(C[i][j]))),
+      h("dt", {}, "Source"), h("dd", {}, isBench ? "OPTIMAL_TARGET_MAP" : "formula"),
+      h("dt", {}, `${cfg.w1}·D̂ + ${cfg.w2}·T̂ + ${cfg.w3}·R̂`), h("dd", {}, fmt(f.base)),
+      h("dt", {}, "Depot penalty"), h("dd", {}, `${fmt(f.pen)} (${d.StationCode} vs ${v.StationCode})`),
+      h("dt", {}, "Distance mismatch"), h("dd", {}, fmt(f.diff)),
+      h("dt", {}, "Base offset"), h("dd", {}, fmt(cfg.base_offset)),
+      h("dt", {}, "Formula total"), h("dd", {}, fmt(f.total)),
+      h("dt", {}, "D̂ / T̂ (driver)"), h("dd", {}, `${fmt(d.d_norm, 3)} / ${fmt(d.t_norm, 3)}`),
+      h("dt", {}, "R̂ (vehicle)"), h("dd", {}, fmt(v.r_norm, 3))),
+    isBench ? h("p", { class: "note" }, `This cell's cost is overridden by the benchmark target ${fmt(C[i][j])}. The formula would give ${fmt(f.total)}.`) : "",
+    h("h3", { style: "margin-top:14px" }, "Cheapest vehicles for this driver"),
+    h("div", { class: "rank-list" }, ranked.slice(0, 6).map((c, k) => h("div", { class: c === j ? "me" : null }, h("span", {}, k + 1), h("span", {}, `V${DATA.vehicles[c]}${assignCol[i] === c ? " ★" : ""}`), h("span", {}, fmt(C[i][c]))))));
+}
+renderers.matrix = () => { drawMatrix(); cellDetail(0, assignCol[0]); };
+["mxScale", "mxStars", "mxBench"].forEach(id => $("#" + id).addEventListener("change", drawMatrix));
+segmented($("#mxOrder"), v => { mxOrder = v; drawMatrix(); });
+
+/* ============================================================== SOLVERS */
+const SV = DATA.solvers;
+const shortName = s => s.split(" (")[0].replace("Python", "Custom Hungarian");
+(function solverStatic() {
+  const fastest = Math.min(...SV.map(s => s["Execution Time (ms)"]));
+  const zs = SV.map(s => s["Optimal Cost (Z)"]);
+  $("#solverKpis").replaceChildren(
+    h("div", { class: "kpi" }, h("div", { class: "label" }, "Optimum Z (all solvers)"), h("div", { class: "value" }, fmt(zs[0])), h("div", { class: "delta good" }, zs.every(z => Math.abs(z - zs[0]) < 1e-4) ? "100% agreement" : "solvers disagree")),
+    h("div", { class: "kpi" }, h("div", { class: "label" }, "Fastest"), h("div", { class: "value" }, shortName(SV.find(s => s["Execution Time (ms)"] === fastest)["Tool / Solver"])), h("div", { class: "delta" }, `${fmt(fastest, 3)} ms`)),
+    h("div", { class: "kpi" }, h("div", { class: "label" }, "Baseline → optimum"), h("div", { class: "value" }, `−${M.cost_reduction_pct.toFixed(2)}%`), h("div", { class: "delta good" }, `${fmt(M.baseline_cost)} → ${fmt(M.optimized_cost)}`)),
+  );
+  makeTable($("#solverTable"), [
+    { key: "Tool / Solver", label: "Solver" },
+    { key: "Category", label: "Formulation" },
+    { key: "Optimal Cost (Z)", label: "Z", num: true, text: r => fmt(r["Optimal Cost (Z)"]) },
+    { key: "Execution Time (ms)", label: "Runtime (ms)", num: true, text: r => fmt(r["Execution Time (ms)"], 3) },
+    { key: "rel", label: "× fastest", num: true, sortVal: r => r["Execution Time (ms)"], text: r => (r["Execution Time (ms)"] / fastest).toFixed(1) + "×" },
+    { key: "Status", label: "Status", html: r => `<span class="badge ok">${esc(r.Status)}</span>` },
+  ], SV);
+})();
+let rtScale = "log";
+function drawSolvers() {
+  const names = SV.map(s => shortName(s["Tool / Solver"]));
+  const colors = [cssVar("--d0"), cssVar("--d1"), cssVar("--d2"), cssVar("--d3")];
+  const t = SV.map(s => s["Execution Time (ms)"]);
+  plot("rtChart", [{ type: "bar", x: names, y: t, marker: { color: colors }, text: t.map(v => fmt(v, v < 1 ? 3 : 2) + " ms"), textposition: "outside", cliponaxis: false,
+    customdata: SV.map(s => s.Category), hovertemplate: "<b>%{x}</b><br>%{customdata}<br>%{y:.3f} ms<extra></extra>" }],
+    { yaxis: { type: rtScale, title: { text: "milliseconds" } }, showlegend: false, margin: { t: 30 } });
+  const zs = SV.map(s => s["Optimal Cost (Z)"]);
+  const traces = [{ type: "bar", x: names, y: zs, marker: { color: colors }, text: zs.map(z => "Z = " + fmt(z)), textposition: "outside", cliponaxis: false, name: "Optimal Z",
+    hovertemplate: "<b>%{x}</b><br>Z = %{y:.4f}<extra></extra>" }];
+  const shapes = [];
+  if ($("#zBaseline").checked) {
+    shapes.push({ type: "line", xref: "paper", x0: 0, x1: 1, y0: M.baseline_cost, y1: M.baseline_cost, line: { color: cssVar("--star"), dash: "dash", width: 2 } });
+  }
+  plot("zChart", traces, { yaxis: { range: [0, Math.max(M.baseline_cost, ...zs) * 1.2], title: { text: "Z" } }, shapes, showlegend: false, margin: { t: 30 },
+    annotations: $("#zBaseline").checked ? [{ xref: "paper", x: 1, y: M.baseline_cost, text: `baseline ${fmt(M.baseline_cost)}`, showarrow: false, yanchor: "bottom", xanchor: "right", font: { color: cssVar("--star"), size: 11 } }] : [] });
+}
+renderers.solvers = drawSolvers;
+segmented($("#rtScale"), v => { rtScale = v; drawSolvers(); });
+$("#zBaseline").addEventListener("change", drawSolvers);
+
+/* =========================================================== ALLOCATION */
+const stations = [...new Set([...drvRow.map(d => d.StationCode), ...vehRow.map(v => v.StationCode)])].sort((a, b) => a - b);
+const depotOn = new Set(stations);
+let bipOrder = "depot", focus = null, pinned = null;
+$("#depotChips").replaceChildren(...stations.map(st => {
+  const b = h("button", { class: "chip", type: "button", "aria-pressed": "true" }, h("span", { class: "dot", style: `background:var(--d${stations.indexOf(st) % 5})` }, ""), "Depot " + st);
+  b.onclick = () => { depotOn.has(st) ? depotOn.delete(st) : depotOn.add(st); b.setAttribute("aria-pressed", String(depotOn.has(st))); drawBip(); };
+  return b;
+}));
+function drawBip() {
+  const svg = $("#bip"), rowH = 30, top = 30, W = 900, xL = 250, xR = 650;
+  const H = top + N * rowH + 10;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let dOrder = [...Array(N).keys()], vOrder = [...Array(N).keys()];
+  if (bipOrder === "depot") {
+    dOrder.sort((a, b) => drvRow[a].StationCode - drvRow[b].StationCode || a - b);
+    vOrder = dOrder.map(i => assignCol[i]);
+  }
+  const yD = [], yV = [];
+  dOrder.forEach((i, k) => yD[i] = top + k * rowH + rowH / 2);
+  vOrder.forEach((j, k) => yV[j] = top + k * rowH + rowH / 2);
+  const NS = "http://www.w3.org/2000/svg";
+  const s = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+  svg.replaceChildren();
+  svg.append(s("text", { x: xL, y: 16, "text-anchor": "middle", class: "sm" }, "DRIVERS"), s("text", { x: xR, y: 16, "text-anchor": "middle", class: "sm" }, "VEHICLES"));
+  const candG = s("g", {}); svg.append(candG);
+  const edgeG = s("g", {}); svg.append(edgeG);
+  for (let i = 0; i < N; i++) {
+    const j = assignCol[i], st = drvRow[i].StationCode;
+    if (!depotOn.has(st)) continue;
+    const y1 = yD[i], y2 = yV[j], mx = (xL + xR) / 2;
+    edgeG.append(s("path", { d: `M${xL + 8},${y1} C${mx},${y1} ${mx},${y2} ${xR - 8},${y2}`, class: "edge", stroke: depotColor(st), "data-i": i, "data-j": j }));
+  }
+  const nodeG = s("g", {}); svg.append(nodeG);
+  drvRow.forEach((d, i) => {
+    if (!depotOn.has(d.StationCode)) return;
+    const g = s("g", { class: "item", "data-kind": "d", "data-i": i });
+    g.append(s("circle", { cx: xL, cy: yD[i], r: 8, fill: depotColor(d.StationCode), class: "node" }),
+      s("text", { x: xL - 16, y: yD[i] + 4, "text-anchor": "end" }, `Driver ${d.Pilotcode}`),
+      s("text", { x: xL - 100, y: yD[i] + 4, "text-anchor": "end", class: "sm" }, `stn ${d.StationCode}`));
+    nodeG.append(g);
+  });
+  vehRow.forEach((v, j) => {
+    const i = assignCol.indexOf(j);
+    if (!depotOn.has(drvRow[i].StationCode)) return;
+    const g = s("g", { class: "item", "data-kind": "v", "data-j": j });
+    g.append(s("circle", { cx: xR, cy: yV[j], r: 8, fill: depotColor(v.StationCode), class: "node" }),
+      s("text", { x: xR + 16, y: yV[j] + 4 }, `Vehicle ${v.VehicleCode}`),
+      s("text", { x: xR + 112, y: yV[j] + 4, class: "sm" }, `stn ${v.StationCode} · ${fmt(C[i][j])}`));
+    nodeG.append(g);
+  });
+  svg._pos = { yD, yV, xL, xR };
+  applyFocus();
+}
+function applyFocus() {
+  const svg = $("#bip"), f = pinned ?? focus;
+  svg.classList.toggle("focus", f != null);
+  $$(".edge, g.item", svg).forEach(e => e.classList.remove("on"));
+  const candG = svg.children[2]; if (candG) candG.replaceChildren();
+  if (f == null) { bipDetail(null); return; }
+  const i = f, j = assignCol[i];
+  $$(`.edge[data-i="${i}"], g.item[data-i="${i}"], g.item[data-j="${j}"]`, svg).forEach(e => e.classList.add("on"));
+  if ($("#bipCand").checked && candG) {
+    const { yD, yV, xL, xR } = svg._pos, mx = (xL + xR) / 2;
+    const costs = C[i], lo = Math.min(...costs), hi = Math.max(...costs);
+    for (let c = 0; c < N; c++) {
+      if (c === j || yV[c] == null) continue;
+      const t = (costs[c] - lo) / ((hi - lo) || 1);
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", `M${xL + 8},${yD[i]} C${mx},${yD[i]} ${mx},${yV[c]} ${xR - 8},${yV[c]}`);
+      p.setAttribute("class", "cand"); p.setAttribute("stroke", cssVar("--muted")); p.setAttribute("opacity", String(0.85 - 0.7 * t));
+      candG.append(p);
+    }
+  }
+  bipDetail(i);
+}
+function bipDetail(i) {
+  const host = $("#bipDetail");
+  if (i == null) { host.replaceChildren(h("h3", {}, "Details"), h("p", { class: "hint" }, "Hover or tap a driver, vehicle or edge. Tap again to unpin.")); return; }
+  const d = drvRow[i], j = assignCol[i], v = vehRow[j];
+  const ranked = [...Array(N).keys()].sort((a, b) => C[i][a] - C[i][b]);
+  host.replaceChildren(
+    h("h3", {}, `Driver ${d.Pilotcode} → Vehicle ${v.VehicleCode}`),
+    h("p", { class: "hint" }, pinned != null ? "Pinned. Tap it again to release." : "Tap to pin."),
+    h("dl", {},
+      h("dt", {}, "Assignment cost"), h("dd", {}, h("b", {}, fmt(C[i][j]))),
+      h("dt", {}, "Same depot"), h("dd", {}, d.StationCode === v.StationCode ? `yes (${d.StationCode})` : `no (${d.StationCode} vs ${v.StationCode})`),
+      h("dt", {}, "Driver shifts"), h("dd", {}, d.Shift_Count),
+      h("dt", {}, "Driver avg distance"), h("dd", {}, fmt(d.Avg_Distance, 1) + " km"),
+      h("dt", {}, "Driver avg duration"), h("dd", {}, fmt(d.Avg_Duration, 2) + " h"),
+      h("dt", {}, "Driver total distance"), h("dd", {}, fmt(d.Total_Distance, 1) + " km"),
+      h("dt", {}, "Vehicle trips"), h("dd", {}, fmtInt(v.TripCount)),
+      h("dt", {}, "Vehicle total distance"), h("dd", {}, fmt(v.Total_Distance, 1) + " km"),
+      h("dt", {}, "Utilization (dist / trips)"), h("dd", {}, `${v.Category_distance} / ${v.Category_tripcount}`)),
+    h("h3", { style: "margin-top:14px" }, "Cheapest options for this driver"),
+    h("div", { class: "rank-list" }, ranked.slice(0, 5).map((c, k) => h("div", { class: c === j ? "me" : null }, h("span", {}, k + 1), h("span", {}, `V${DATA.vehicles[c]} · stn ${vehRow[c].StationCode}`), h("span", {}, fmt(C[i][c]))))));
+}
+(function bindBip() {
+  const svg = $("#bip");
+  const target = e => {
+    const edge = e.target.closest(".edge"); if (edge) return +edge.dataset.i;
+    const g = e.target.closest("g.item"); if (!g) return null;
+    return g.dataset.kind === "d" ? +g.dataset.i : assignCol.indexOf(+g.dataset.j);
+  };
+  svg.addEventListener("mouseover", e => { const i = target(e); if (i !== focus) { focus = i; applyFocus(); } });
+  svg.addEventListener("mouseleave", () => { focus = null; applyFocus(); });
+  svg.addEventListener("click", e => { const i = target(e); pinned = (i == null || pinned === i) ? null : i; applyFocus(); });
+})();
+segmented($("#bipOrder"), v => { bipOrder = v; drawBip(); });
+$("#bipCand").addEventListener("change", applyFocus);
+
+function drawAllocCharts() {
+  const byDepot = stations.map(st => {
+    const pairs = DATA.assignment.filter((a, i) => drvRow[i].StationCode === st);
+    return { st, count: pairs.length, cost: sum(pairs.map(p => p.CellCost)) };
+  });
+  plot("depotChart", [
+    { type: "bar", name: "Pairs", x: byDepot.map(d => "Depot " + d.st), y: byDepot.map(d => d.count), marker: { color: stations.map(st => depotColor(st)) },
+      text: byDepot.map(d => `${d.count} pairs · Σ ${fmt(d.cost, 3)}`), textposition: "outside", cliponaxis: false,
+      customdata: byDepot.map(d => [d.cost, d.cost / d.count]), hovertemplate: "<b>%{x}</b><br>%{y} pairs<br>Σ cost %{customdata[0]:.4f}<br>mean %{customdata[1]:.4f}<extra></extra>" },
+  ], { yaxis: { title: { text: "pairs" }, range: [0, Math.max(...byDepot.map(d => d.count)) * 1.25] }, showlegend: false, margin: { t: 30 } });
+  const order = [...Array(N).keys()].sort((a, b) => DATA.assignment[a].CellCost - DATA.assignment[b].CellCost);
+  plot("pairCostChart", [{
+    type: "bar", orientation: "v", x: order.map(i => "D" + DATA.assignment[i].Driver), y: order.map(i => DATA.assignment[i].CellCost),
+    marker: { color: order.map(i => depotColor(drvRow[i].StationCode)) },
+    customdata: order.map(i => ["V" + DATA.assignment[i].AssignedVehicle, drvRow[i].StationCode]),
+    hovertemplate: "<b>%{x} → %{customdata[0]}</b><br>Depot %{customdata[1]}<br>Cost %{y:.4f}<extra></extra>",
+  }], { xaxis: { tickangle: -60, tickfont: { size: 10 } }, yaxis: { title: { text: "C_ij" } }, showlegend: false });
+}
+const pairRows = DATA.assignment.map((a, i) => {
+  const j = assignCol[i];
+  const rank = [...C[i]].sort((x, y) => x - y).indexOf(C[i][j]) + 1;
+  return { ...a, DStn: drvRow[i].StationCode, VStn: vehRow[j].StationCode, Rank: rank, Trips: vehRow[j].TripCount, Util: vehRow[j].Category_distance };
+});
+const pairTable = makeTable($("#pairTable"), [
+  { key: "Driver", label: "Driver", text: r => "D" + r.Driver, sortVal: r => r.Driver },
+  { key: "DStn", label: "Driver depot" },
+  { key: "AssignedVehicle", label: "Vehicle", text: r => "V" + r.AssignedVehicle, sortVal: r => r.AssignedVehicle },
+  { key: "VStn", label: "Vehicle depot" },
+  { key: "SameStation", label: "Same depot", html: r => r.SameStation ? '<span class="badge ok">YES</span>' : '<span class="badge">NO</span>' },
+  { key: "CellCost", label: "Cost C_ij", num: true, text: r => fmt(r.CellCost) },
+  { key: "Rank", label: "Rank in row", num: true, text: r => `${r.Rank} / ${N}` },
+  { key: "Trips", label: "Vehicle trips", num: true },
+  { key: "Util", label: "Utilization" },
+], pairRows);
+$("#pairSearch").addEventListener("input", e => pairTable.setFilter(e.target.value));
+renderers.allocation = () => { drawBip(); drawAllocCharts(); };
+
+/* ============================================================= WORKLOAD */
+(function wlKpis() {
+  const k = [
+    ["Mean workload W̄", M.mean_workload.toFixed(2) + " km", "avg shift distance per driver"],
+    ["Std dev σ", M.std_workload.toFixed(2) + " km", `variance σ² = ${M.variance_workload.toFixed(2)}`],
+    ["WBI = 1 − σ/W̄", fmt(M.wbi), `baseline ${fmt(M.baseline_wbi)} (+${M.wbi_improvement_pct.toFixed(2)}%)`, "good"],
+    ["Utilization by distance", Object.entries(DATA.split_distance).map(([, v]) => v).join(" / "), "Low / Moderate / High"],
+    ["Utilization by trips", Object.entries(DATA.split_trips).map(([, v]) => v).join(" / "), "Low / Moderate / High"],
+  ];
+  $("#wlKpis").replaceChildren(...k.map(([l, v, d, c]) => h("div", { class: "kpi" }, h("div", { class: "label" }, l), h("div", { class: "value" }, v), h("div", { class: "delta " + (c || "") }, d))));
+})();
+let avgSort = "value", scColor = "Category_distance";
+function drawWorkload() {
+  const bins = +$("#histBins").value;
+  const td = drvRow.map(d => d.Total_Distance), lo = Math.min(...td), hi = Math.max(...td), size = (hi - lo) / bins;
+  const mean = sum(td) / td.length;
+  plot("histChart", [{ type: "histogram", x: td, xbins: { start: lo, end: hi + 1e-6, size }, marker: { color: cssVar("--d0"), line: { color: cssVar("--surface"), width: 1 } },
+    hovertemplate: "%{x} km<br>%{y} drivers<extra></extra>", name: "Drivers" }],
+    { xaxis: { title: { text: "Total distance (km)" } }, yaxis: { title: { text: "Drivers" } }, showlegend: false, bargap: 0.04,
+      shapes: [{ type: "line", x0: mean, x1: mean, yref: "paper", y0: 0, y1: 1, line: { color: cssVar("--star"), dash: "dash", width: 2 } }],
+      annotations: [{ x: mean, yref: "paper", y: 1, text: `mean ${mean.toFixed(1)} km`, showarrow: false, xanchor: "left", yanchor: "bottom", font: { color: cssVar("--star"), size: 11 } }] });
+
+  let order = [...Array(N).keys()];
+  if (avgSort === "value") order.sort((a, b) => drvRow[b].Avg_Distance - drvRow[a].Avg_Distance);
+  else order.sort((a, b) => drvRow[a].Pilotcode - drvRow[b].Pilotcode);
+  const W = M.mean_workload, S = M.std_workload;
+  plot("avgChart", [{ type: "bar", x: order.map(i => "D" + drvRow[i].Pilotcode), y: order.map(i => drvRow[i].Avg_Distance),
+    marker: { color: order.map(i => depotColor(drvRow[i].StationCode)) },
+    customdata: order.map(i => [drvRow[i].StationCode, drvRow[i].Shift_Count, (drvRow[i].Avg_Distance - W) / S]),
+    hovertemplate: "<b>%{x}</b> (depot %{customdata[0]})<br>%{y:.1f} km avg over %{customdata[1]} shifts<br>z-score %{customdata[2]:+.2f}<extra></extra>" }],
+    { xaxis: { tickangle: -60, tickfont: { size: 10 } }, yaxis: { title: { text: "Avg shift distance (km)" } }, showlegend: false,
+      shapes: [
+        { type: "rect", xref: "paper", x0: 0, x1: 1, y0: W - S, y1: W + S, fillcolor: cssVar("--cover"), line: { width: 0 }, layer: "below" },
+        { type: "line", xref: "paper", x0: 0, x1: 1, y0: W, y1: W, line: { color: cssVar("--star"), dash: "dash", width: 2 } }],
+      annotations: [{ xref: "paper", x: 1, y: W + S, text: "W̄ ± σ", showarrow: false, xanchor: "right", yanchor: "bottom", font: { color: cssVar("--muted"), size: 11 } }] });
+
+  const tiers = TIER_COLORS();
+  const groups = scColor === "StationCode" ? stations : ["Low", "Moderate", "High"];
+  plot("scatterChart", groups.map(g => {
+    const vs = vehRow.filter(v => v[scColor] === g);
+    return { type: "scatter", mode: "markers", name: scColor === "StationCode" ? "Depot " + g : g,
+      x: vs.map(v => v.Total_Distance), y: vs.map(v => v.TripCount),
+      marker: { size: vs.map(v => 8 + v.Shift_Count * 0.6), color: scColor === "StationCode" ? depotColor(g) : tiers[g], line: { color: cssVar("--surface"), width: 1 }, opacity: 0.9 },
+      customdata: vs.map(v => [v.VehicleCode, v.StationCode, v.Shift_Count, v.Utilization_Distance * 100, v.Utilization_Trips * 100]),
+      hovertemplate: "<b>V%{customdata[0]}</b> (depot %{customdata[1]})<br>%{x:.1f} km · %{y} trips · %{customdata[2]} shifts<br>Util: %{customdata[3]:.0f}% dist, %{customdata[4]:.0f}% trips<extra></extra>" };
+  }), { xaxis: { title: { text: "Total vehicle distance (km)" } }, yaxis: { title: { text: "Trip count" } } });
+
+  const labels = ["Low", "Moderate", "High"];
+  plot("tierChart", [
+    { type: "bar", name: "By distance", x: labels, y: labels.map(l => DATA.split_distance[l] || 0), marker: { color: cssVar("--d0") }, text: labels.map(l => DATA.split_distance[l] || 0), textposition: "outside", hovertemplate: "%{x}: %{y} vehicles (distance)<extra></extra>" },
+    { type: "bar", name: "By trips", x: labels, y: labels.map(l => DATA.split_trips[l] || 0), marker: { color: cssVar("--d1") }, text: labels.map(l => DATA.split_trips[l] || 0), textposition: "outside", hovertemplate: "%{x}: %{y} vehicles (trips)<extra></extra>" },
+  ], { barmode: "group", yaxis: { title: { text: "Vehicles" }, rangemode: "tozero" }, xaxis: { title: { text: "Tier (<50% · 50–80% · >80% of max)" } } });
+}
+renderers.workload = drawWorkload;
+$("#histBins").addEventListener("input", e => { $("#histBinsVal").textContent = e.target.value; drawWorkload(); });
+segmented($("#avgSort"), v => { avgSort = v; drawWorkload(); });
+segmented($("#scColor"), v => { scColor = v; drawWorkload(); });
+
+/* ================================================================= DATA */
+const drvTable = makeTable($("#drvTable"), [
+  { key: "Pilotcode", label: "Driver", text: r => "D" + r.Pilotcode, sortVal: r => r.Pilotcode },
+  { key: "StationCode", label: "Depot" },
+  { key: "Shift_Count", label: "Shifts", num: true },
+  { key: "Avg_Distance", label: "Avg distance (km)", num: true, text: r => fmt(r.Avg_Distance, 2) },
+  { key: "Avg_Duration", label: "Avg duration (h)", num: true, text: r => fmt(r.Avg_Duration, 2) },
+  { key: "Total_Distance", label: "Total distance (km)", num: true, text: r => fmt(r.Total_Distance, 1) },
+  { key: "d_norm", label: "D̂", num: true, text: r => fmt(r.d_norm, 3) },
+  { key: "t_norm", label: "T̂", num: true, text: r => fmt(r.t_norm, 3) },
+  { key: "assigned", label: "Assigned", sortVal: r => DATA.vehicles[assignCol[DATA.drivers.indexOf(r.Pilotcode)]], text: r => "V" + DATA.vehicles[assignCol[DATA.drivers.indexOf(r.Pilotcode)]] },
+], DATA.driver_summary);
+const vehTable = makeTable($("#vehTable"), [
+  { key: "VehicleCode", label: "Vehicle", text: r => "V" + r.VehicleCode, sortVal: r => r.VehicleCode },
+  { key: "StationCode", label: "Depot" },
+  { key: "Shift_Count", label: "Shifts", num: true },
+  { key: "TripCount", label: "Trips", num: true },
+  { key: "Avg_Distance", label: "Avg distance (km)", num: true, text: r => fmt(r.Avg_Distance, 2) },
+  { key: "Total_Distance", label: "Total distance (km)", num: true, text: r => fmt(r.Total_Distance, 1) },
+  { key: "r_norm", label: "R̂", num: true, text: r => fmt(r.r_norm, 3) },
+  { key: "Utilization_Distance", label: "Util. dist", num: true, text: r => (r.Utilization_Distance * 100).toFixed(1) + "%" },
+  { key: "Category_distance", label: "Tier (dist)" },
+  { key: "Utilization_Trips", label: "Util. trips", num: true, text: r => (r.Utilization_Trips * 100).toFixed(1) + "%" },
+  { key: "Category_tripcount", label: "Tier (trips)" },
+], DATA.vehicle_summary);
+$("#drvSearch").addEventListener("input", e => drvTable.setFilter(e.target.value));
+$("#vehSearch").addEventListener("input", e => vehTable.setFilter(e.target.value));
+
+/* ============================================================= TERMINAL */
+(function terminal() {
+  const raw = DATA.console_output;
+  let out = "", open = 0, st = { b: false, dim: false, fg: null, bg: null };
+  const flush = () => {
+    const cls = [st.b && "b", st.dim && "dim", st.fg && "c" + st.fg, st.bg && "bg" + st.bg].filter(Boolean);
+    if (cls.length) { out += `<span class="${cls.join(" ")}">`; open++; }
+  };
+  raw.split(/(\x1b\[[0-9;]*m)/).forEach(part => {
+    const m = part.match(/^\x1b\[([0-9;]*)m$/);
+    if (!m) { out += esc(part); return; }
+    while (open) { out += "</span>"; open--; }
+    for (const code of (m[1] || "0").split(";").map(Number)) {
+      if (code === 0) st = { b: false, dim: false, fg: null, bg: null };
+      else if (code === 1) st.b = true;
+      else if (code === 2) st.dim = true;
+      else if (code >= 30 && code <= 37) st.fg = code;
+      else if (code >= 40 && code <= 47) st.bg = code;
+    }
+    flush();
+  });
+  while (open) { out += "</span>"; open--; }
+  $("#term").innerHTML = out;
+  $("#copyTerm").onclick = async () => {
+    const plain = raw.replace(/\x1b\[[0-9;]*m/g, "");
+    try { await navigator.clipboard.writeText(plain); $("#copyMsg").textContent = "Copied."; }
+    catch (e) { $("#copyMsg").textContent = "Clipboard unavailable. Select the text manually."; }
+  };
+})();
+
+/* ----------------------------------------------------------------- boot */
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1) || "overview", false));
+showTab(location.hash.slice(1) || "overview", false);
+</script>
+</body>
+</html>
