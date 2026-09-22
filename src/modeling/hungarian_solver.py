@@ -1,13 +1,18 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
 
 
-def solve_hungarian_algorithm(cost_matrix: np.ndarray) -> Tuple[List[Tuple[int, int]], float]:
+def solve_hungarian_algorithm(
+    cost_matrix: np.ndarray, trace: Optional[List[dict]] = None
+) -> Tuple[List[Tuple[int, int]], float]:
     """
     Kuhn-Munkres (Hungarian) Algorithm for Bipartite Linear Assignment.
     Guarantees global minimum total assignment cost in polynomial time O(N^3).
+
+    If a `trace` list is passed, a snapshot of every algorithm step (reductions,
+    zero-covering lines, theta adjustments, final matching) is appended to it.
 
     Returns:
         assignments: List of (row_index, col_index)
@@ -17,13 +22,21 @@ def solve_hungarian_algorithm(cost_matrix: np.ndarray) -> Tuple[List[Tuple[int, 
     n = matrix.shape[0]
     orig_matrix = matrix.copy()
 
+    def record(step: str, **extra) -> None:
+        if trace is not None:
+            trace.append({"step": step, "matrix": matrix.round(6).tolist(), **extra})
+
+    record("original")
+
     # Step 1: Row Reduction
     row_mins = matrix.min(axis=1, keepdims=True)
     matrix -= row_mins
+    record("row_reduction", row_mins=row_mins.ravel().tolist())
 
     # Step 2: Column Reduction
     col_mins = matrix.min(axis=0, keepdims=True)
     matrix -= col_mins
+    record("col_reduction", col_mins=col_mins.ravel().tolist())
 
     # Steps 3 & 4: Line Covering & Matrix Adjustments
     iteration = 1
@@ -84,6 +97,15 @@ def solve_hungarian_algorithm(cost_matrix: np.ndarray) -> Tuple[List[Tuple[int, 
                     uncovered_mask[r, c] = True
 
         theta = matrix[uncovered_mask].min()
+        record(
+            "cover",
+            iteration=iteration,
+            matching=list(match_row),
+            matching_size=matching_size,
+            covered_rows=covered_rows,
+            covered_cols=covered_cols,
+            theta=float(theta),
+        )
 
         for r in range(n):
             for c in range(n):
@@ -92,10 +114,18 @@ def solve_hungarian_algorithm(cost_matrix: np.ndarray) -> Tuple[List[Tuple[int, 
                 elif covered_rows[r] and covered_cols[c]:
                     matrix[r, c] += theta
 
+        record(
+            "adjust",
+            iteration=iteration,
+            covered_rows=covered_rows,
+            covered_cols=covered_cols,
+            theta=float(theta),
+        )
         iteration += 1
 
     assignments = [(r, match_row[r]) for r in range(n)]
     total_cost = sum(orig_matrix[r, match_row[r]] for r in range(n))
+    record("optimal", matching=list(match_row), total_cost=float(total_cost))
     return assignments, total_cost
 
 
